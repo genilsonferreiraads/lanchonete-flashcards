@@ -316,13 +316,22 @@ export default function App() {
           <div className="layout-content-container flex flex-col w-full max-w-md flex-1">
             <header className="w-full py-8 text-center relative">
               <h1 className="text-3xl font-bold tracking-tight text-text-light-primary">Lanchonete Limarques</h1>
-              <button 
-                onClick={handleReset}
-                className="absolute top-0 right-0 text-xs opacity-30 hover:opacity-60 transition-opacity"
-                title="Resetar progresso"
-              >
-                Reset
-              </button>
+              <div className="absolute top-0 right-0 flex gap-3">
+                <button 
+                  onClick={handleOpenTutorial}
+                  className="text-xs opacity-40 hover:opacity-70 transition-opacity text-green-600"
+                  title="Ver tutorial"
+                >
+                  Tutorial
+                </button>
+                <button 
+                  onClick={handleReset}
+                  className="text-xs opacity-30 hover:opacity-60 transition-opacity"
+                  title="Resetar progresso"
+                >
+                  Reset
+                </button>
+              </div>
             </header>
             
             <main className="flex-grow flex flex-col justify-center gap-8">
@@ -371,16 +380,6 @@ export default function App() {
                 </div>
               )}
             </main>
-            
-            <footer className="w-full pb-4 text-center">
-              <button
-                onClick={handleOpenTutorial}
-                className="text-xs opacity-40 hover:opacity-70 transition-opacity text-green-600"
-                title="Ver tutorial"
-              >
-                Tutorial
-              </button>
-            </footer>
           </div>
         </div>
       </div>
