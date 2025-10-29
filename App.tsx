@@ -17,6 +17,7 @@ export default function App() {
   const [reviewQueue, setReviewQueue] = useState<number[]>([]);
   const [correctAnswers, setCorrectAnswers] = useState<Set<number>>(new Set());
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [showResetMenu, setShowResetMenu] = useState(false);
 
   // Initialize review queue with all cards due for review
   useEffect(() => {
@@ -87,6 +88,19 @@ export default function App() {
     setIsFlipped(false);
   }, [currentIndex, reviewQueue]);
 
+  const handleReset = useCallback(() => {
+    setShowResetMenu(true);
+  }, []);
+
+  const confirmReset = useCallback(() => {
+    localStorage.removeItem('spaced_repetition_state');
+    window.location.reload();
+  }, []);
+
+  const cancelReset = useCallback(() => {
+    setShowResetMenu(false);
+  }, []);
+
   const currentCard = useMemo(() => {
     if (reviewQueue.length === 0) return null;
     const cardId = reviewQueue[currentIndex];
@@ -98,11 +112,40 @@ export default function App() {
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
+      {showResetMenu && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={cancelReset}>
+          <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-2">Resetar Progresso</h3>
+            <p className="text-sm text-gray-600 mb-4">Tem certeza que deseja apagar todo o progresso?</p>
+            <div className="flex gap-3">
+              <button
+                onClick={confirmReset}
+                className="flex-1 bg-red-600 text-white rounded-lg px-4 py-2 hover:bg-red-700 transition-colors font-semibold"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={cancelReset}
+                className="flex-1 bg-gray-200 text-gray-800 rounded-lg px-4 py-2 hover:bg-gray-300 transition-colors font-semibold"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="layout-container flex h-full grow flex-col">
         <div className="flex flex-1 justify-center p-4 sm:p-6 md:p-8">
           <div className="layout-content-container flex flex-col w-full max-w-md flex-1">
-            <header className="w-full py-8 text-center">
+            <header className="w-full py-8 text-center relative">
               <h1 className="text-3xl font-bold tracking-tight text-text-light-primary">Lanchonete Limarques</h1>
+              <button 
+                onClick={handleReset}
+                className="absolute top-0 right-0 text-xs opacity-30 hover:opacity-60 transition-opacity"
+                title="Resetar progresso"
+              >
+                Reset
+              </button>
             </header>
             
             <main className="flex-grow flex flex-col justify-center gap-8">
