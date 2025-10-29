@@ -14,7 +14,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ current, total }) => {
       <div className="flex justify-between items-center">
         <p className="text-text-light-primary text-sm font-medium leading-normal">Progresso</p>
         <p className="text-text-light-secondary text-xs font-normal leading-normal">
-          Card {current} de {total}
+          Código {current} de {total}
         </p>
       </div>
       <div className="rounded-full bg-slate-200">
