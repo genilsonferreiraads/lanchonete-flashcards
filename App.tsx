@@ -375,10 +375,10 @@ export default function App() {
             <footer className="w-full pb-4 text-center">
               <button
                 onClick={handleOpenTutorial}
-                className="text-xs opacity-30 hover:opacity-60 transition-opacity text-gray-600"
+                className="text-xs opacity-40 hover:opacity-70 transition-opacity text-green-600"
                 title="Ver tutorial"
               >
-                📖 Tutorial
+                Tutorial
               </button>
             </footer>
           </div>
