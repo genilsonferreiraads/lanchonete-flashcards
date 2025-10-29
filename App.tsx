@@ -4,6 +4,7 @@ import { CARDS } from './constants';
 import type { FlashcardData } from './types';
 import Flashcard from './components/Flashcard';
 import ProgressBar from './components/ProgressBar';
+import Tutorial from './components/Tutorial';
 import { spacedRepetitionService } from './spacedRepetition';
 
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -37,6 +38,7 @@ export default function App() {
   const [isOpening, setIsOpening] = useState(false);
   const [errorPopup, setErrorPopup] = useState<{ productName: string; code: string; message: string; title: string } | null>(null);
   const [canCloseErrorPopup, setCanCloseErrorPopup] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   // Educational messages variations
   const errorMessages = [
@@ -51,6 +53,17 @@ export default function App() {
     { title: "Foque no código!", message: "{product} tem o código {code}. Preste atenção neste número!" },
     { title: "Momento de estudo!", message: "O código de {product} é {code}. Tente visualizar e memorizar!" }
   ];
+
+  // Check if tutorial should be shown (first time only)
+  useEffect(() => {
+    const hasSeenTutorial = localStorage.getItem('hasSeenTutorial');
+    const hasProgress = localStorage.getItem('spaced_repetition_state');
+    
+    // Show tutorial if never seen AND no progress exists (first time user)
+    if (!hasSeenTutorial && !hasProgress) {
+      setShowTutorial(true);
+    }
+  }, []);
 
   // Initialize review queue with all cards due for review
   useEffect(() => {
@@ -200,7 +213,13 @@ export default function App() {
   const confirmReset = useCallback(() => {
     localStorage.removeItem('spaced_repetition_state');
     localStorage.removeItem('correctAnswers');
+    localStorage.removeItem('hasSeenTutorial');
     window.location.reload();
+  }, []);
+
+  const handleTutorialClose = useCallback(() => {
+    localStorage.setItem('hasSeenTutorial', 'true');
+    setShowTutorial(false);
   }, []);
 
   const cancelReset = useCallback(() => {
@@ -224,6 +243,9 @@ export default function App() {
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
+      {showTutorial && (
+        <Tutorial onClose={handleTutorialClose} />
+      )}
       {errorPopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
