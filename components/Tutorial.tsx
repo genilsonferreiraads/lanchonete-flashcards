@@ -8,17 +8,17 @@ interface TutorialProps {
 const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
   return (
     <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
-      <button
-        onClick={onClose}
-        className="fixed top-4 right-4 z-[60] w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600 bg-white shadow-sm"
-        title="Fechar tutorial"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-      </button>
-      <div className="min-h-screen flex flex-col items-center justify-center p-6">
+      <div className="relative min-h-screen flex flex-col items-center justify-center p-6">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600 bg-white shadow-sm"
+          title="Fechar tutorial"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
         <div className="max-w-2xl w-full space-y-6">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Bem-vindo! 👋</h1>
