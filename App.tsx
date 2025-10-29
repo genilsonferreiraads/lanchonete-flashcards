@@ -150,7 +150,8 @@ export default function App() {
   }, [reviewQueue, currentIndex, cards]);
 
   const hasCards = reviewQueue.length > 0;
-  const totalCardsToLearn = reviewQueue.length + correctAnswers.size;
+  const totalCards = cards.length;
+  const totalCardsToLearn = totalCards;
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
