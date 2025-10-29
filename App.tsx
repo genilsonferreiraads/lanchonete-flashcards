@@ -41,15 +41,18 @@ export default function App() {
     const now = Date.now();
     const cardIds = cards.map(c => c.id);
     
-    // Get only cards that are due for review OR have never been initialized
+    // Get cards that are due for review OR have never been initialized
     const due = cardIds.filter(id => {
       const stats = spacedRepetitionService.getCardStats(id);
       if (!stats) return true; // New cards
       return stats.nextReview <= now; // Due for review
     });
 
+    // If no cards are due, show all cards (allow unlimited reviews)
+    const cardsToReview = due.length > 0 ? due : cardIds;
+
     // Sort by priority
-    const sorted = spacedRepetitionService.sortCardsByPriority(due);
+    const sorted = spacedRepetitionService.sortCardsByPriority(cardsToReview);
     setReviewQueue(sorted);
     
     // Check if it's a new day and reset if needed
