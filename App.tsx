@@ -24,10 +24,11 @@ export default function App() {
     const now = Date.now();
     const cardIds = cards.map(c => c.id);
     
-    // Get only cards that are due for review
+    // Get only cards that are due for review OR have never been initialized
     const due = cardIds.filter(id => {
       const stats = spacedRepetitionService.getCardStats(id);
-      return stats && stats.nextReview <= now;
+      if (!stats) return true; // New cards
+      return stats.nextReview <= now; // Due for review
     });
 
     // Sort by priority

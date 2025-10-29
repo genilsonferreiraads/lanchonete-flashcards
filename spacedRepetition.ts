@@ -105,6 +105,10 @@ export class SpacedRepetitionService {
     const now = Date.now();
 
     return [...cardIds].sort((a, b) => {
+      // Initialize cards if they don't exist
+      if (!this.state[a]) this.initializeCard(a);
+      if (!this.state[b]) this.initializeCard(b);
+      
       const statsA = this.state[a];
       const statsB = this.state[b];
 
