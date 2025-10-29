@@ -35,6 +35,22 @@ export default function App() {
   const [showResetMenu, setShowResetMenu] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
+  const [errorPopup, setErrorPopup] = useState<{ productName: string; code: string; message: string; title: string } | null>(null);
+  const [canCloseErrorPopup, setCanCloseErrorPopup] = useState(false);
+
+  // Educational messages variations
+  const errorMessages = [
+    { title: "Estude e memorize!", message: "Lembre-se: o código de {product} é {code}. Tente guardar esse número para a próxima vez!" },
+    { title: "Continue aprendendo!", message: "O código correto de {product} é {code}. Pratique e você vai memorizar!" },
+    { title: "Não desista!", message: "O código de {product} é {code}. Revise com atenção e você conseguirá!" },
+    { title: "Foque no aprendizado!", message: "Memorize: {product} tem o código {code}. Você pode fazer isso!" },
+    { title: "Tente novamente!", message: "Anote: o código de {product} é {code}. Continue praticando!" },
+    { title: "Errar faz parte!", message: "O código de {product} é {code}. Use esse momento para aprender!" },
+    { title: "Persistência é a chave!", message: "Lembre-se bem: {product} = código {code}. Continue estudando!" },
+    { title: "Cada erro é um aprendizado!", message: "O código correto de {product} é {code}. Você vai memorizar!" },
+    { title: "Foque no código!", message: "{product} tem o código {code}. Preste atenção neste número!" },
+    { title: "Momento de estudo!", message: "O código de {product} é {code}. Tente visualizar e memorizar!" }
+  ];
 
   // Initialize review queue with all cards due for review
   useEffect(() => {
@@ -102,14 +118,15 @@ export default function App() {
     setIsFlipped(false);
   }, [currentIndex, reviewQueue, correctAnswers]);
 
-  const handleIncorrectAnswer = useCallback(() => {
-    if (reviewQueue.length === 0) return;
+  const closeErrorPopup = useCallback(() => {
+    if (!canCloseErrorPopup) return;
     
-    const cardId = reviewQueue[currentIndex];
-    spacedRepetitionService.recordIncorrectAnswer(cardId);
+    const savedCardId = reviewQueue[currentIndex];
+    if (!savedCardId) return;
+    
+    spacedRepetitionService.recordIncorrectAnswer(savedCardId);
 
     // Move this card ahead based on queue size (like Anki does)
-    // For larger lists, move further ahead
     const newQueue = [...reviewQueue];
     const [movedCard] = newQueue.splice(currentIndex, 1);
     
@@ -120,8 +137,57 @@ export default function App() {
 
     setReviewQueue(newQueue);
     setCurrentIndex(0);
+    setErrorPopup(null);
+    setCanCloseErrorPopup(false);
     setIsFlipped(false);
-  }, [currentIndex, reviewQueue]);
+  }, [currentIndex, reviewQueue, canCloseErrorPopup]);
+
+  const handleIncorrectAnswer = useCallback(() => {
+    if (reviewQueue.length === 0) return;
+    
+    const cardId = reviewQueue[currentIndex];
+    const currentCardData = cards.find(c => c.id === cardId);
+    
+    if (currentCardData) {
+      // Show educational popup with random message
+      const randomMessage = errorMessages[Math.floor(Math.random() * errorMessages.length)];
+      setCanCloseErrorPopup(false);
+      setErrorPopup({
+        productName: currentCardData.front,
+        code: currentCardData.back,
+        title: randomMessage.title,
+        message: randomMessage.message
+          .replace('{product}', currentCardData.front)
+          .replace('{code}', currentCardData.back)
+      });
+      
+      // Save cardId for later use
+      const savedCardId = cardId;
+      const savedIndex = currentIndex;
+      const savedQueue = [...reviewQueue];
+      
+      // Auto-close after 5 seconds
+      setTimeout(() => {
+        setCanCloseErrorPopup(true);
+        // Process the incorrect answer
+        spacedRepetitionService.recordIncorrectAnswer(savedCardId);
+        
+        const newQueue = [...savedQueue];
+        const [movedCard] = newQueue.splice(savedIndex, 1);
+        const positionsAhead = Math.max(5, Math.floor(newQueue.length / 2));
+        const insertPosition = Math.min(savedIndex + positionsAhead, newQueue.length);
+        newQueue.splice(insertPosition, 0, movedCard);
+        
+        setReviewQueue(newQueue);
+        setCurrentIndex(0);
+        setErrorPopup(null);
+        setCanCloseErrorPopup(false);
+        setIsFlipped(false);
+      }, 5000);
+    }
+    
+    setIsFlipped(false);
+  }, [currentIndex, reviewQueue, cards]);
 
   const handleReset = useCallback(() => {
     setIsClosing(false);
@@ -158,6 +224,36 @@ export default function App() {
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
+      {errorPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
+            <div className="text-center">
+              <div className="text-4xl mb-3">💡</div>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">{errorPopup.title}</h3>
+              <div className="mb-3">
+                <p className="text-sm text-gray-600 mb-1">Produto:</p>
+                <p className="text-2xl font-bold text-green-600 break-words">
+                  {errorPopup.productName}
+                </p>
+              </div>
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-1">Código:</p>
+                <div className="text-6xl font-bold text-green-600">
+                  {errorPopup.code}
+                </div>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed mb-4">
+                {errorPopup.message}
+              </p>
+              {!canCloseErrorPopup && (
+                <div className="w-full bg-gray-200 text-gray-500 rounded-lg px-4 py-2 font-medium text-center">
+                  Aguarde 5 segundos...
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {showResetMenu && (
         <div 
           className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 transition-opacity duration-300 ${
