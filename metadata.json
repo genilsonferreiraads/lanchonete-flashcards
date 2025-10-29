@@ -1,0 +1,5 @@
+{
+  "name": "Lanchonete Limarques - Flashcards",
+  "description": "A spaced repetition flashcard application to help memorize product codes for Lanchonete Limarques. Users can flip through cards, test their knowledge, and track their progress.",
+  "requestFramePermissions": []
+}
