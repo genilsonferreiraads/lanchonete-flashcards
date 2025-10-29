@@ -84,9 +84,12 @@ const Flashcard: React.FC<FlashcardProps> = ({ frontContent, backContent, isFlip
         
         {/* Back Face */}
         <div className="flip-card-back w-full h-full flex flex-col items-center justify-center bg-white p-6 rounded-xl">
-          <p className="text-text-light-secondary text-sm font-semibold tracking-wider uppercase">Código</p>
-          <div className="text-text-light-primary text-7xl font-bold leading-tight tracking-[-0.015em] mt-2">
+          <p className="text-text-light-secondary text-sm font-semibold tracking-wider uppercase mb-4">Código</p>
+          <div className="text-text-light-primary text-7xl font-bold leading-tight tracking-[-0.015em] mb-6">
             <FadeInText text={backContent} delay={200} />
+          </div>
+          <div className="text-text-light-secondary text-lg font-medium leading-tight tracking-[-0.015em] text-center px-2">
+            <FadeInText text={frontContent} delay={400} />
           </div>
         </div>
       </div>
