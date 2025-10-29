@@ -18,6 +18,14 @@ export default function App() {
   const [correctAnswers, setCorrectAnswers] = useState<Set<number>>(() => {
     try {
       const saved = localStorage.getItem('correctAnswers');
+      const lastDate = localStorage.getItem('lastSessionDate');
+      const today = new Date().toDateString();
+      
+      // If it's a new day, reset progress
+      if (lastDate !== today) {
+        return new Set();
+      }
+      
       return saved ? new Set(JSON.parse(saved)) : new Set();
     } catch {
       return new Set();
@@ -41,7 +49,17 @@ export default function App() {
     // Sort by priority
     const sorted = spacedRepetitionService.sortCardsByPriority(due);
     setReviewQueue(sorted);
-    // DON'T reset correctAnswers here - keep it from localStorage
+    
+    // Check if it's a new day and reset if needed
+    const lastDate = localStorage.getItem('lastSessionDate');
+    const today = new Date().toDateString();
+    
+    if (lastDate !== today) {
+      localStorage.setItem('lastSessionDate', today);
+      localStorage.removeItem('correctAnswers');
+      setCorrectAnswers(new Set());
+    }
+    
     setCurrentIndex(0);
   }, [cards, forceUpdate]);
 
@@ -62,6 +80,7 @@ export default function App() {
     
     // Save to localStorage
     localStorage.setItem('correctAnswers', JSON.stringify([...newCorrectAnswers]));
+    localStorage.setItem('lastSessionDate', new Date().toDateString());
 
     // Remove from queue and advance
     const newQueue = reviewQueue.filter((_, idx) => idx !== currentIndex);
