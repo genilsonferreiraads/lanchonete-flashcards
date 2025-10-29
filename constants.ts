@@ -1,11 +1,11 @@
 
 import type { FlashcardData } from './types';
 
-// Helper function to capitalize words with more than 2 letters
+// Helper function to capitalize words with more than 3 letters
 const capitalizeText = (text: string): string => {
   return text.split(' ').map(word => {
-    // Don't capitalize words with 2 or fewer letters (like "de", "c.", "a")
-    if (word.length <= 2 || word.startsWith('(')) {
+    // Don't capitalize words with 3 or fewer letters (like "de", "com", "c.")
+    if (word.length <= 3 || word.startsWith('(')) {
       return word;
     }
     return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
@@ -42,8 +42,8 @@ export const CARDS: FlashcardData[] = [
   { id: 27, front: capitalizeText("Fanta LS de 1 Litro"), back: "65" },
   { id: 28, front: capitalizeText("Coca Mini"), back: "223" },
   { id: 29, front: capitalizeText("Coco"), back: "99" },
-  { id: 30, front: capitalizeText("Golito (Suco de Laranja Garrafa)"), back: "93" },
-  { id: 31, front: capitalizeText("Café com Leite Grande (Copo Maior)"), back: "202" },
+  { id: 30, front: capitalizeText("Golito"), back: "93" },
+  { id: 31, front: capitalizeText("Café c. Leite G"), back: "202" },
   { id: 32, front: capitalizeText("Panqueca"), back: "219" },
   { id: 33, front: capitalizeText("Enroladinho"), back: "262" },
   { id: 34, front: capitalizeText("Torta"), back: "106" },
@@ -52,7 +52,7 @@ export const CARDS: FlashcardData[] = [
   { id: 37, front: capitalizeText("Água Mineral (P)"), back: "79" },
   { id: 38, front: capitalizeText("Água Mineral (G)"), back: "80" },
   { id: 39, front: capitalizeText("Água Mineral com Gás"), back: "81" },
-  { id: 40, front: capitalizeText("Doce - Pudim"), back: "91" },
+  { id: 40, front: capitalizeText("Doce"), back: "91" },
   { id: 41, front: capitalizeText("Cajuína"), back: "74" },
   { id: 42, front: capitalizeText("Sopa de Costela"), back: "116" },
   { id: 43, front: capitalizeText("Caldo de Costela"), back: "122" },
