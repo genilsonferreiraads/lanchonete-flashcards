@@ -5,6 +5,7 @@ import type { FlashcardData } from './types';
 import Flashcard from './components/Flashcard';
 import ProgressBar from './components/ProgressBar';
 import Tutorial from './components/Tutorial';
+import CodesList from './components/CodesList';
 import { spacedRepetitionService } from './spacedRepetition';
 
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -39,6 +40,7 @@ export default function App() {
   const [errorPopup, setErrorPopup] = useState<{ productName: string; code: string; message: string; title: string } | null>(null);
   const [canCloseErrorPopup, setCanCloseErrorPopup] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showCodesList, setShowCodesList] = useState(false);
 
   // Educational messages variations
   const errorMessages = [
@@ -226,6 +228,14 @@ export default function App() {
     setShowTutorial(true);
   }, []);
 
+  const handleOpenCodesList = useCallback(() => {
+    setShowCodesList(true);
+  }, []);
+
+  const handleCloseCodesList = useCallback(() => {
+    setShowCodesList(false);
+  }, []);
+
   const cancelReset = useCallback(() => {
     setIsOpening(false);
     setIsClosing(true);
@@ -247,6 +257,9 @@ export default function App() {
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
+      {showCodesList && (
+        <CodesList onClose={handleCloseCodesList} />
+      )}
       {showTutorial && (
         <Tutorial onClose={handleTutorialClose} />
       )}
@@ -317,6 +330,13 @@ export default function App() {
             <header className="w-full py-8 text-center relative">
               <h1 className="text-3xl font-bold tracking-tight text-text-light-primary">Lanchonete Limarques</h1>
               <div className="absolute top-0 right-0 flex gap-3">
+                <button 
+                  onClick={handleOpenCodesList}
+                  className="text-xs opacity-40 hover:opacity-70 transition-opacity text-green-600"
+                  title="Ver códigos"
+                >
+                  Ver Códigos
+                </button>
                 <button 
                   onClick={handleOpenTutorial}
                   className="text-xs opacity-40 hover:opacity-70 transition-opacity text-green-600"
