@@ -33,6 +33,7 @@ export default function App() {
   });
   const [forceUpdate, setForceUpdate] = useState(0);
   const [showResetMenu, setShowResetMenu] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   // Initialize review queue with all cards due for review
   useEffect(() => {
@@ -119,6 +120,7 @@ export default function App() {
   }, [currentIndex, reviewQueue]);
 
   const handleReset = useCallback(() => {
+    setIsClosing(false);
     setShowResetMenu(true);
   }, []);
 
@@ -129,7 +131,11 @@ export default function App() {
   }, []);
 
   const cancelReset = useCallback(() => {
-    setShowResetMenu(false);
+    setIsClosing(true);
+    setTimeout(() => {
+      setShowResetMenu(false);
+      setIsClosing(false);
+    }, 200);
   }, []);
 
   const currentCard = useMemo(() => {
@@ -144,8 +150,18 @@ export default function App() {
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
       {showResetMenu && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={cancelReset}>
-          <div className="bg-white rounded-lg p-5 max-w-xs mx-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
+        <div 
+          className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 transition-opacity duration-200 ${
+            isClosing ? 'opacity-0' : 'opacity-100'
+          }`}
+          onClick={cancelReset}
+        >
+          <div 
+            className={`bg-white rounded-lg p-5 max-w-xs mx-4 shadow-lg transition-all duration-200 ${
+              isClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
             <p className="text-sm text-gray-700 mb-4 text-center">Resetar progresso?</p>
             <div className="flex gap-2">
               <button
