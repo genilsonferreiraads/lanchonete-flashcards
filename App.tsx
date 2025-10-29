@@ -15,7 +15,14 @@ export default function App() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [reviewQueue, setReviewQueue] = useState<number[]>([]);
-  const [correctAnswers, setCorrectAnswers] = useState<Set<number>>(new Set());
+  const [correctAnswers, setCorrectAnswers] = useState<Set<number>>(() => {
+    try {
+      const saved = localStorage.getItem('correctAnswers');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const [forceUpdate, setForceUpdate] = useState(0);
   const [showResetMenu, setShowResetMenu] = useState(false);
 
@@ -34,7 +41,7 @@ export default function App() {
     // Sort by priority
     const sorted = spacedRepetitionService.sortCardsByPriority(due);
     setReviewQueue(sorted);
-    setCorrectAnswers(new Set());
+    // DON'T reset correctAnswers here - keep it from localStorage
     setCurrentIndex(0);
   }, [cards, forceUpdate]);
 
@@ -52,6 +59,9 @@ export default function App() {
     const newCorrectAnswers = new Set(correctAnswers);
     newCorrectAnswers.add(cardId);
     setCorrectAnswers(newCorrectAnswers);
+    
+    // Save to localStorage
+    localStorage.setItem('correctAnswers', JSON.stringify([...newCorrectAnswers]));
 
     // Remove from queue and advance
     const newQueue = reviewQueue.filter((_, idx) => idx !== currentIndex);
@@ -95,6 +105,7 @@ export default function App() {
 
   const confirmReset = useCallback(() => {
     localStorage.removeItem('spaced_repetition_state');
+    localStorage.removeItem('correctAnswers');
     window.location.reload();
   }, []);
 
