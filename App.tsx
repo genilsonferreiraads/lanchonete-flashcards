@@ -222,6 +222,10 @@ export default function App() {
     setShowTutorial(false);
   }, []);
 
+  const handleOpenTutorial = useCallback(() => {
+    setShowTutorial(true);
+  }, []);
+
   const cancelReset = useCallback(() => {
     setIsOpening(false);
     setIsClosing(true);
@@ -367,6 +371,16 @@ export default function App() {
                 </div>
               )}
             </main>
+            
+            <footer className="w-full pb-4 text-center">
+              <button
+                onClick={handleOpenTutorial}
+                className="text-xs opacity-30 hover:opacity-60 transition-opacity text-gray-600"
+                title="Ver tutorial"
+              >
+                📖 Tutorial
+              </button>
+            </footer>
           </div>
         </div>
       </div>
