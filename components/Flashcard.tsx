@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface FlashcardProps {
   frontContent: string;
@@ -7,6 +7,49 @@ interface FlashcardProps {
   isFlipped: boolean;
   onFlip: () => void;
 }
+
+// Typing animation component
+const TypingText: React.FC<{ text: string; delay?: number }> = ({ text, delay = 30 }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setDisplayedText(text.slice(0, currentIndex + 1));
+        setCurrentIndex(currentIndex + 1);
+      }, delay);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [currentIndex, text, delay]);
+
+  useEffect(() => {
+    setDisplayedText('');
+    setCurrentIndex(0);
+  }, [text]);
+
+  return <span>{displayedText}<span className="animate-pulse">|</span></span>;
+};
+
+// Fade-in animation component
+const FadeInText: React.FC<{ text: string; delay?: number }> = ({ text, delay = 0 }) => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsVisible(true);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [delay]);
+
+  return (
+    <span className={`transition-opacity duration-500 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      {text}
+    </span>
+  );
+};
 
 const Flashcard: React.FC<FlashcardProps> = ({ frontContent, backContent, isFlipped, onFlip }) => {
   return (
@@ -19,7 +62,13 @@ const Flashcard: React.FC<FlashcardProps> = ({ frontContent, backContent, isFlip
         <div className="flip-card-front w-full h-full flex flex-col items-center justify-between bg-white p-6 rounded-xl overflow-hidden">
           <div className="text-center flex-grow flex flex-col justify-center px-2">
             <p className="text-text-light-secondary text-sm font-semibold tracking-wider uppercase mb-4">Produto</p>
-            <p className="text-text-light-primary text-3xl font-bold leading-tight tracking-[-0.015em] break-words">{frontContent}</p>
+            <div className="text-text-light-primary text-3xl font-bold leading-tight tracking-[-0.015em] break-words">
+              {!isFlipped ? (
+                <TypingText text={frontContent} delay={30} />
+              ) : (
+                <span>{frontContent}</span>
+              )}
+            </div>
           </div>
           {!isFlipped && (
             <div className="flex justify-center w-full pt-4">
@@ -36,7 +85,9 @@ const Flashcard: React.FC<FlashcardProps> = ({ frontContent, backContent, isFlip
         {/* Back Face */}
         <div className="flip-card-back w-full h-full flex flex-col items-center justify-center bg-white p-6 rounded-xl">
           <p className="text-text-light-secondary text-sm font-semibold tracking-wider uppercase">Código</p>
-          <p className="text-text-light-primary text-7xl font-bold leading-tight tracking-[-0.015em] mt-2">{backContent}</p>
+          <div className="text-text-light-primary text-7xl font-bold leading-tight tracking-[-0.015em] mt-2">
+            <FadeInText text={backContent} delay={200} />
+          </div>
         </div>
       </div>
     </div>
