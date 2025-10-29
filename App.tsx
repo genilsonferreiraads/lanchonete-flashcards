@@ -144,22 +144,21 @@ export default function App() {
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
       {showResetMenu && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={cancelReset}>
-          <div className="bg-white rounded-xl p-6 max-w-sm mx-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-2">Resetar Progresso</h3>
-            <p className="text-sm text-gray-600 mb-4">Tem certeza que deseja apagar todo o progresso?</p>
-            <div className="flex gap-3">
-              <button
-                onClick={confirmReset}
-                className="flex-1 bg-red-600 text-white rounded-lg px-4 py-2 hover:bg-red-700 transition-colors font-semibold"
-              >
-                Confirmar
-              </button>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={cancelReset}>
+          <div className="bg-white rounded-lg p-5 max-w-xs mx-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <p className="text-sm text-gray-700 mb-4 text-center">Resetar progresso?</p>
+            <div className="flex gap-2">
               <button
                 onClick={cancelReset}
-                className="flex-1 bg-gray-200 text-gray-800 rounded-lg px-4 py-2 hover:bg-gray-300 transition-colors font-semibold"
+                className="flex-1 bg-gray-100 text-gray-700 rounded px-3 py-2 hover:bg-gray-200 transition-colors text-sm"
               >
                 Cancelar
+              </button>
+              <button
+                onClick={confirmReset}
+                className="flex-1 bg-green-600 text-white rounded px-3 py-2 hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                Confirmar
               </button>
             </div>
           </div>
