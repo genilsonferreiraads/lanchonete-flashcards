@@ -12,7 +12,7 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
         <div className="max-w-2xl w-full space-y-8">
           <div className="text-center">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">Bem-vindo! 👋</h1>
-            <p className="text-lg text-gray-600">Aprenda a usar o sistema de repetição espaçada</p>
+            <p className="text-lg text-gray-600">Aprenda a usar o aplicativo</p>
           </div>
 
           <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
@@ -55,21 +55,21 @@ const Tutorial: React.FC<TutorialProps> = ({ onClose }) => {
           <div className="bg-green-50 rounded-xl p-6 border border-green-200">
             <h3 className="text-xl font-bold text-green-800 mb-3">✅ Se você acertou:</h3>
             <p className="text-gray-700">
-              O sistema vai aumentar o tempo até você ver este card novamente. Cards que você acerta com frequência aparecerão menos vezes, otimizando seu estudo!
+              Este produto vai demorar mais para aparecer novamente. Produtos que você sabe bem vão aparecer menos vezes, deixando mais tempo para você estudar os que ainda não sabe!
             </p>
           </div>
 
           <div className="bg-red-50 rounded-xl p-6 border border-red-200">
             <h3 className="text-xl font-bold text-red-800 mb-3">❌ Se você errou:</h3>
             <p className="text-gray-700">
-              Um popup educativo aparecerá mostrando o código correto. O card voltará para revisão em breve, para que você possa memorizar melhor. O sistema é inteligente e ajusta a dificuldade automaticamente!
+              Uma mensagem vai aparecer mostrando o código correto. Este produto vai voltar para você revisar logo em seguida, para ajudar você a memorizar melhor!
             </p>
           </div>
 
           <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
             <h3 className="text-xl font-bold text-purple-800 mb-3">🧠 Dica importante:</h3>
             <p className="text-gray-700 font-semibold">
-              O processo de pensar antes de virar o card é essencial! Isso ativa sua memória e torna o aprendizado mais eficaz. Não tenha pressa, o objetivo é a memorização.
+              Pensar no código antes de virar é muito importante! Isso ajuda você a lembrar melhor. Não tenha pressa, o objetivo é você memorizar os códigos.
             </p>
           </div>
 
