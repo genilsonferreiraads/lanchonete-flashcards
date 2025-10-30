@@ -40,7 +40,9 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
         console.error('Login error details:', loginError);
         
         // Mensagens de erro mais específicas
-        if (loginError.message.includes('Invalid login credentials')) {
+        if (loginError.message.includes('Email logins are disabled') || loginError.message.includes('email is disabled')) {
+          setError('Login por email está desabilitado. Por favor, habilite o Email Provider no Supabase Dashboard (Authentication → Providers → Email)');
+        } else if (loginError.message.includes('Invalid login credentials')) {
           setError('Email ou senha incorretos');
         } else if (loginError.message.includes('Email not confirmed')) {
           setError('Por favor, confirme seu email antes de fazer login');
