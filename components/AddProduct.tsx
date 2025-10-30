@@ -20,6 +20,8 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
     setSuccess(false);
 
     try {
+      console.log('🔵 Iniciando adição de produto:', { code: code.trim(), name: name.trim() });
+
       // Buscar o próximo ID disponível
       const { data: existingProducts, error: fetchError } = await supabase
         .from('flashcard_products')
@@ -27,28 +29,56 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
         .order('id', { ascending: false })
         .limit(1);
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('❌ Erro ao buscar produtos:', fetchError);
+        throw fetchError;
+      }
+
+      console.log('📋 Produtos existentes:', existingProducts);
 
       const nextId = existingProducts && existingProducts.length > 0 
         ? existingProducts[0].id + 1 
         : 1;
 
+      console.log('🆔 Próximo ID calculado:', nextId);
+
+      const newProduct = {
+        id: nextId,
+        code: code.trim(),
+        name: name.trim(),
+      };
+
+      console.log('💾 Tentando inserir:', newProduct);
+
+      // Verificar autenticação
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('🔐 Sessão de autenticação:', session ? '✅ Autenticado' : '❌ Não autenticado');
+
       // Inserir novo produto
-      const { error: insertError } = await supabase
+      const { data: insertedData, error: insertError } = await supabase
         .from('flashcard_products')
-        .insert({
-          id: nextId,
-          code: code.trim(),
-          name: name.trim(),
-        });
+        .insert(newProduct)
+        .select();
+
+      console.log('📥 Resultado do insert:', { insertedData, insertError });
 
       if (insertError) {
+        console.error('❌ Erro detalhado no insert:', {
+          message: insertError.message,
+          code: insertError.code,
+          details: insertError.details,
+          hint: insertError.hint,
+        });
+
         if (insertError.code === '23505') {
           setError('Este código já existe. Escolha outro código.');
+        } else if (insertError.message.includes('permission denied') || insertError.message.includes('policy')) {
+          setError('Erro de permissão. Verifique se as políticas RLS estão configuradas corretamente. Execute o arquivo supabase_auth_policy.sql no Supabase.');
         } else {
-          setError(insertError.message || 'Erro ao adicionar produto');
+          setError(`Erro: ${insertError.message || 'Erro ao adicionar produto'}`);
         }
-      } else {
+      } else if (insertedData && insertedData.length > 0) {
+        console.log('✅ Produto inserido com sucesso:', insertedData[0]);
         setSuccess(true);
         setCode('');
         setName('');
@@ -58,10 +88,18 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
           onProductAdded();
           onClose();
         }, 1500);
+      } else {
+        console.error('⚠️ Insert retornou sucesso mas sem dados:', { insertedData, insertError });
+        setError('Produto pode ter sido adicionado, mas não foi possível confirmar. Verifique no Supabase.');
+        // Mesmo assim, tentar atualizar a lista
+        setTimeout(() => {
+          onProductAdded();
+          onClose();
+        }, 1500);
       }
-    } catch (err) {
-      setError('Erro ao adicionar produto. Tente novamente.');
-      console.error('Add product error:', err);
+    } catch (err: any) {
+      console.error('❌ Erro geral ao adicionar produto:', err);
+      setError(err?.message || 'Erro ao adicionar produto. Tente novamente.');
     } finally {
       setLoading(false);
     }
