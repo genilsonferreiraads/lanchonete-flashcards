@@ -354,46 +354,46 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
                   {filteredProducts.map((product) => (
                     <div
                       key={product.id}
-                      className="p-4 hover:bg-gray-50 transition-colors flex items-center justify-between gap-4"
+                      className="p-4 hover:bg-gray-50 transition-colors"
                     >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-4">
-                          <span className="text-2xl font-bold text-green-600 font-mono">
-                            {product.back}
-                          </span>
-                          <span className="text-lg text-gray-800 break-words">
-                            {product.front}
-                          </span>
-                        </div>
+                      {/* Informações do Produto */}
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-2xl font-bold text-green-600 font-mono flex-shrink-0">
+                          {product.back}
+                        </span>
+                        <span className="text-lg text-gray-800 break-words flex-1 min-w-0">
+                          {product.front}
+                        </span>
                       </div>
                       
-                      <div className="flex gap-2 flex-shrink-0">
+                      {/* Botões de Ação */}
+                      <div className="flex gap-2 flex-wrap">
                         <button
                           onClick={() => handleEdit(product)}
-                          className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-colors text-sm"
+                          className="flex-1 min-w-[120px] px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-colors text-sm"
                           title="Editar"
                         >
                           ✏️ Editar
                         </button>
                         {deleteConfirm === product.id ? (
-                          <div className="flex gap-2">
+                          <>
                             <button
                               onClick={() => handleDelete(product.id)}
-                              className="px-3 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm"
+                              className="flex-1 min-w-[80px] px-3 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm"
                             >
                               ✅ Sim
                             </button>
                             <button
                               onClick={() => setDeleteConfirm(null)}
-                              className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors text-sm"
+                              className="flex-1 min-w-[80px] px-3 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors text-sm"
                             >
                               ❌ Não
                             </button>
-                          </div>
+                          </>
                         ) : (
                           <button
                             onClick={() => setDeleteConfirm(product.id)}
-                            className="px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors text-sm"
+                            className="flex-1 min-w-[120px] px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors text-sm"
                             title="Excluir"
                           >
                             🗑️ Excluir
