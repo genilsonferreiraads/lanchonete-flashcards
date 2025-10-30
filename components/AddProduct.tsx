@@ -278,7 +278,9 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
                   </label>
                   <input
                     id="code"
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                     required
