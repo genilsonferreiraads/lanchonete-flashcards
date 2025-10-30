@@ -18,19 +18,45 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
     setError('');
 
     try {
+      // Validar email antes de enviar
+      if (!email || !email.includes('@')) {
+        setError('Email inválido');
+        setLoading(false);
+        return;
+      }
+
+      if (!password || password.length < 6) {
+        setError('Senha deve ter pelo menos 6 caracteres');
+        setLoading(false);
+        return;
+      }
+
       const { data, error: loginError } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim().toLowerCase(),
         password,
       });
 
       if (loginError) {
-        setError(loginError.message || 'Erro ao fazer login');
-      } else if (data.user) {
+        console.error('Login error details:', loginError);
+        
+        // Mensagens de erro mais específicas
+        if (loginError.message.includes('Invalid login credentials')) {
+          setError('Email ou senha incorretos');
+        } else if (loginError.message.includes('Email not confirmed')) {
+          setError('Por favor, confirme seu email antes de fazer login');
+        } else if (loginError.message.includes('Email rate limit')) {
+          setError('Muitas tentativas. Aguarde alguns minutos.');
+        } else {
+          setError(loginError.message || 'Erro ao fazer login');
+        }
+      } else if (data?.user) {
         onLoginSuccess();
+      } else {
+        setError('Erro desconhecido ao fazer login');
       }
-    } catch (err) {
-      setError('Erro ao fazer login. Tente novamente.');
+    } catch (err: any) {
       console.error('Login error:', err);
+      setError(err?.message || 'Erro ao fazer login. Verifique sua conexão e tente novamente.');
     } finally {
       setLoading(false);
     }
