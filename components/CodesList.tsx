@@ -7,6 +7,13 @@ interface CodesListProps {
 }
 
 const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
+  // Ordenar os cards por código numérico
+  const sortedCards = [...CARDS].sort((a, b) => {
+    const codeA = parseInt(a.back, 10);
+    const codeB = parseInt(b.back, 10);
+    return codeA - codeB;
+  });
+
   return (
     <div className="fixed inset-0 bg-white z-50 overflow-y-auto">
       <div className="relative min-h-screen p-6">
@@ -34,7 +41,7 @@ const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {CARDS.map((card) => (
+                  {sortedCards.map((card) => (
                     <tr key={card.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-gray-900 font-mono font-semibold">{card.back}</td>
                       <td className="px-4 py-3 text-gray-700">{card.front}</td>
