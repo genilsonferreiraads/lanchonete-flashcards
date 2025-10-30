@@ -6,8 +6,10 @@ import Flashcard from './components/Flashcard';
 import ProgressBar from './components/ProgressBar';
 import Tutorial from './components/Tutorial';
 import CodesList from './components/CodesList';
+import Login from './components/Login';
+import AddProduct from './components/AddProduct';
 import { spacedRepetitionService } from './spacedRepetition';
-import { fetchProductsFromSupabase } from './supabase';
+import { fetchProductsFromSupabase, supabase } from './supabase';
 
 const shuffleArray = <T,>(array: T[]): T[] => {
   return [...array].sort(() => Math.random() - 0.5);
@@ -44,6 +46,9 @@ export default function App() {
   const [showContinueButton, setShowContinueButton] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showCodesList, setShowCodesList] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Refs para armazenar os timeouts do popup de erro
   const errorPopupTimeoutsRef = useRef<{ showButton?: NodeJS.Timeout; autoClose?: NodeJS.Timeout }>({});
@@ -61,6 +66,23 @@ export default function App() {
     { title: "Foque no código!", message: "{product} tem o código {code}. Preste atenção neste número!" },
     { title: "Momento de estudo!", message: "O código de {product} é {code}. Tente visualizar e memorizar!" }
   ];
+
+  // Verificar autenticação ao carregar
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsAuthenticated(!!session);
+    };
+
+    checkAuth();
+
+    // Ouvir mudanças de autenticação
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsAuthenticated(!!session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Buscar produtos do Supabase ao carregar
   useEffect(() => {
@@ -82,6 +104,19 @@ export default function App() {
     };
 
     loadProducts();
+  }, []);
+
+  // Recarregar produtos após adicionar novo
+  const handleProductAdded = useCallback(async () => {
+    try {
+      const supabaseProducts = await fetchProductsFromSupabase();
+      if (supabaseProducts.length > 0) {
+        setCards(shuffleArray(supabaseProducts));
+        setForceUpdate(prev => prev + 1);
+      }
+    } catch (error) {
+      console.error('Failed to reload products:', error);
+    }
   }, []);
 
   // Limpar timeouts quando o componente desmontar
@@ -291,6 +326,25 @@ export default function App() {
     setShowCodesList(false);
   }, []);
 
+  const handleAddProductClick = useCallback(() => {
+    if (isAuthenticated) {
+      setShowAddProduct(true);
+    } else {
+      setShowLogin(true);
+    }
+  }, [isAuthenticated]);
+
+  const handleLoginSuccess = useCallback(() => {
+    setShowLogin(false);
+    setShowAddProduct(true);
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    await supabase.auth.signOut();
+    setIsAuthenticated(false);
+    setShowAddProduct(false);
+  }, []);
+
   const cancelReset = useCallback(() => {
     setIsOpening(false);
     setIsClosing(true);
@@ -312,6 +366,12 @@ export default function App() {
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
+      {showLogin && (
+        <Login onLoginSuccess={handleLoginSuccess} onClose={() => setShowLogin(false)} />
+      )}
+      {showAddProduct && (
+        <AddProduct onClose={() => setShowAddProduct(false)} onProductAdded={handleProductAdded} />
+      )}
       {showCodesList && (
         <CodesList onClose={handleCloseCodesList} />
       )}
@@ -391,7 +451,26 @@ export default function App() {
           <div className="layout-content-container flex flex-col w-full max-w-md flex-1">
             <header className="w-full py-8 text-center relative">
               <h1 className="text-3xl font-bold tracking-tight text-text-light-primary">Lanchonete Limarques</h1>
-              <div className="absolute top-0 right-0 flex gap-2">
+              <div className="absolute top-0 right-0 flex gap-2 items-center">
+                <button 
+                  onClick={handleAddProductClick}
+                  className="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all duration-200 hover:scale-110 active:scale-95 shadow-lg"
+                  title={isAuthenticated ? "Adicionar produto" : "Fazer login para adicionar produto"}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                </button>
+                {isAuthenticated && (
+                  <button 
+                    onClick={handleLogout}
+                    className="text-xs opacity-50 hover:opacity-80 transition-opacity text-gray-600"
+                    title="Sair"
+                  >
+                    Sair
+                  </button>
+                )}
                 <button 
                   onClick={handleOpenCodesList}
                   className="px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
