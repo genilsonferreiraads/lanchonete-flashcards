@@ -70,15 +70,44 @@ export default function App() {
   // Verificar autenticação ao carregar
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Erro ao verificar sessão:', error);
+          setIsAuthenticated(false);
+          return;
+        }
+        
+        // Verificar se a sessão é válida (não expirada)
+        if (session && session.expires_at) {
+          const expiresAt = session.expires_at * 1000; // Converter para milissegundos
+          if (Date.now() > expiresAt) {
+            // Sessão expirada, fazer logout
+            await supabase.auth.signOut();
+            setIsAuthenticated(false);
+            return;
+          }
+        }
+        
+        setIsAuthenticated(!!session);
+      } catch (err) {
+        console.error('Erro ao verificar autenticação:', err);
+        setIsAuthenticated(false);
+      }
     };
 
     checkAuth();
 
     // Ouvir mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsAuthenticated(!!session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Tratar eventos de logout explicitamente
+      if (event === 'SIGNED_OUT' || !session) {
+        setIsAuthenticated(false);
+        setShowAddProduct(false);
+      } else {
+        setIsAuthenticated(!!session);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -340,9 +369,40 @@ export default function App() {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    await supabase.auth.signOut();
-    setIsAuthenticated(false);
-    setShowAddProduct(false);
+    try {
+      // Fazer logout do Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        console.error('Erro ao fazer logout:', error);
+      }
+      
+      // Limpar estado local
+      setIsAuthenticated(false);
+      setShowAddProduct(false);
+      setShowLogin(false);
+      
+      // Limpar sessão completamente
+      // O signOut do Supabase já remove a sessão, mas vamos garantir
+      // removendo também qualquer token/cache local
+      await supabase.auth.getSession().then(({ data }) => {
+        if (data.session) {
+          // Se ainda houver sessão, forçar remoção
+          localStorage.removeItem('sb-' + supabase.supabaseUrl.split('//')[1].split('.')[0] + '-auth-token');
+        }
+      });
+      
+      // Forçar atualização da página após um pequeno delay para garantir que o estado foi limpo
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+    } catch (err) {
+      console.error('Erro ao fazer logout:', err);
+      // Mesmo em caso de erro, limpar estado e recarregar
+      setIsAuthenticated(false);
+      setShowAddProduct(false);
+      window.location.reload();
+    }
   }, []);
 
   const cancelReset = useCallback(() => {
