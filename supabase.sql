@@ -1,14 +1,11 @@
 -- Criar tabela de produtos para flashcards
 CREATE TABLE IF NOT EXISTS flashcard_products (
   id INTEGER PRIMARY KEY,
-  code TEXT NOT NULL,
+  code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
--- Criar índice único apenas no ID (código pode ser duplicado se necessário)
-CREATE UNIQUE INDEX IF NOT EXISTS flashcard_products_id_unique ON flashcard_products(id);
 
 -- Inserir todos os produtos existentes
 INSERT INTO flashcard_products (id, code, name) VALUES
@@ -18,7 +15,6 @@ INSERT INTO flashcard_products (id, code, name) VALUES
 (4, '141', 'Cuscus, Arroz e Carne de Sol'),
 (5, '142', 'Cuscus Arroz e Bife'),
 (6, '145', 'Cuscus Arroz e Frango'),
-(7, '145', 'Cuscus, Arroz e Costela'),
 (8, '299', 'Cuscus, Arroz e Bode'),
 (9, '298', 'Cuscus com Bode'),
 (10, '148', 'Cuscus com Frango'),
@@ -130,14 +126,12 @@ INSERT INTO flashcard_products (id, code, name) VALUES
 (160, '160', 'Porção de Frango'),
 (159, '159', 'Porção de Bife'),
 (158, '158', 'Porção de Sol'),
-(200, '117', 'Sopa de Frango')
+(121, '117', 'Sopa de Frango')
 ON CONFLICT (id) DO UPDATE 
 SET code = EXCLUDED.code, 
     name = EXCLUDED.name,
     updated_at = NOW();
     
--- Nota: Alguns produtos podem ter o mesmo código (ex: 145, 93, 117)
--- Isso é intencional da lanchonete, por isso removemos UNIQUE do campo code
 
 -- Habilitar RLS (Row Level Security) - opcional, mas recomendado para produção
 ALTER TABLE flashcard_products ENABLE ROW LEVEL SECURITY;
