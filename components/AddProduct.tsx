@@ -305,25 +305,32 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
               </div>
 
               <div className="flex gap-3 pt-2">
-                {editingProduct && (
+                {editingProduct ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="flex-1 bg-gray-100 text-gray-700 rounded-lg px-4 py-3 font-medium hover:bg-gray-200 transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={loading || success}
+                      className="flex-1 bg-green-600 text-white rounded-lg px-6 py-4 text-lg font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                    >
+                      {loading ? 'Salvando...' : 'Salvar'}
+                    </button>
+                  </>
+                ) : (
                   <button
-                    type="button"
-                    onClick={handleCancelEdit}
-                    className="flex-1 bg-gray-100 text-gray-700 rounded-lg px-4 py-3 font-medium hover:bg-gray-200 transition-colors"
+                    type="submit"
+                    disabled={loading || success}
+                    className="flex-1 bg-green-600 text-white rounded-lg px-6 py-4 text-lg font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
                   >
-                    Cancelar Edição
+                    {loading ? 'Adicionando...' : 'Adicionar Produto'}
                   </button>
                 )}
-                <button
-                  type="submit"
-                  disabled={loading || success}
-                  className="flex-1 bg-green-600 text-white rounded-lg px-6 py-4 text-lg font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                >
-                  {loading 
-                    ? (editingProduct ? 'Atualizando...' : 'Adicionando...') 
-                    : (editingProduct ? 'Atualizar Produto' : 'Adicionar Produto')
-                  }
-                </button>
               </div>
             </form>
           </div>
