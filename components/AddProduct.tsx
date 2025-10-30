@@ -21,6 +21,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [expandedProductId, setExpandedProductId] = useState<number | null>(null);
 
   // Carregar produtos ao montar
   useEffect(() => {
@@ -153,12 +154,25 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
     }
   };
 
+  const handleProductClick = (productId: number) => {
+    if (expandedProductId === productId) {
+      // Se já está expandido, fecha
+      setExpandedProductId(null);
+      setDeleteConfirm(null);
+    } else {
+      // Fecha o anterior (se houver) e abre o novo
+      setExpandedProductId(productId);
+      setDeleteConfirm(null);
+    }
+  };
+
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
     setCode(product.back);
     setName(product.front);
     setError('');
     setSuccess(false);
+    setExpandedProductId(null); // Fechar a barra ao editar
     // Scroll para o topo do formulário
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -185,6 +199,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
       }
 
       setDeleteConfirm(null);
+      setExpandedProductId(null); // Fechar a barra após excluir
       loadProducts();
       onProductAdded();
       setSuccess(true);
@@ -356,50 +371,63 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
                       key={product.id}
                       className="p-4 hover:bg-gray-50 transition-colors"
                     >
-                      {/* Informações do Produto */}
-                      <div className="flex items-center gap-3 mb-3">
+                      {/* Informações do Produto - Clicável */}
+                      <div 
+                        className="flex items-center gap-3 cursor-pointer"
+                        onClick={() => handleProductClick(product.id)}
+                      >
                         <span className="text-2xl font-bold text-green-600 font-mono flex-shrink-0">
                           {product.back}
                         </span>
                         <span className="text-lg text-gray-800 break-words flex-1 min-w-0">
                           {product.front}
                         </span>
+                        <svg 
+                          className={`w-5 h-5 text-gray-400 transition-transform flex-shrink-0 ${expandedProductId === product.id ? 'rotate-180' : ''}`}
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 20 20" 
+                          fill="currentColor"
+                        >
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
                       </div>
                       
-                      {/* Botões de Ação */}
-                      <div className="flex gap-2 flex-wrap">
-                        <button
-                          onClick={() => handleEdit(product)}
-                          className="flex-1 min-w-[120px] px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-colors text-sm"
-                          title="Editar"
-                        >
-                          ✏️ Editar
-                        </button>
-                        {deleteConfirm === product.id ? (
-                          <>
-                            <button
-                              onClick={() => handleDelete(product.id)}
-                              className="flex-1 min-w-[80px] px-3 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm"
-                            >
-                              ✅ Sim
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              className="flex-1 min-w-[80px] px-3 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors text-sm"
-                            >
-                              ❌ Não
-                            </button>
-                          </>
-                        ) : (
+                      {/* Botões de Ação - Aparecem quando expandido */}
+                      {expandedProductId === product.id && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 flex gap-2 flex-wrap animate-in slide-in-from-top duration-200">
                           <button
-                            onClick={() => setDeleteConfirm(product.id)}
-                            className="flex-1 min-w-[120px] px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors text-sm"
-                            title="Excluir"
+                            onClick={() => handleEdit(product)}
+                            className="flex-1 min-w-[120px] px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-medium hover:bg-blue-200 transition-colors text-sm"
+                            title="Editar"
                           >
-                            🗑️ Excluir
+                            ✏️ Editar
                           </button>
-                        )}
-                      </div>
+                          {deleteConfirm === product.id ? (
+                            <>
+                              <button
+                                onClick={() => handleDelete(product.id)}
+                                className="flex-1 min-w-[80px] px-3 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors text-sm"
+                              >
+                                ✅ Sim
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm(null)}
+                                className="flex-1 min-w-[80px] px-3 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors text-sm"
+                              >
+                                ❌ Não
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setDeleteConfirm(product.id)}
+                              className="flex-1 min-w-[120px] px-4 py-2 bg-red-100 text-red-700 rounded-lg font-medium hover:bg-red-200 transition-colors text-sm"
+                              title="Excluir"
+                            >
+                              🗑️ Excluir
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
