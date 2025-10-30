@@ -39,6 +39,7 @@ export default function App() {
   const [isOpening, setIsOpening] = useState(false);
   const [errorPopup, setErrorPopup] = useState<{ productName: string; code: string; message: string; title: string } | null>(null);
   const [canCloseErrorPopup, setCanCloseErrorPopup] = useState(false);
+  const [showContinueButton, setShowContinueButton] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showCodesList, setShowCodesList] = useState(false);
 
@@ -133,29 +134,31 @@ export default function App() {
     setIsFlipped(false);
   }, [currentIndex, reviewQueue, correctAnswers]);
 
-  const closeErrorPopup = useCallback(() => {
-    if (!canCloseErrorPopup) return;
+  const closeErrorPopup = useCallback((savedCardId?: number, savedIndex?: number, savedQueue?: number[]) => {
+    const cardId = savedCardId ?? reviewQueue[currentIndex];
+    const index = savedIndex ?? currentIndex;
+    const queue = savedQueue ?? reviewQueue;
     
-    const savedCardId = reviewQueue[currentIndex];
-    if (!savedCardId) return;
+    if (!cardId) return;
     
-    spacedRepetitionService.recordIncorrectAnswer(savedCardId);
+    spacedRepetitionService.recordIncorrectAnswer(cardId);
 
     // Move this card ahead based on queue size (like Anki does)
-    const newQueue = [...reviewQueue];
-    const [movedCard] = newQueue.splice(currentIndex, 1);
+    const newQueue = [...queue];
+    const [movedCard] = newQueue.splice(index, 1);
     
     // Calculate positions ahead: max(5, half of queue length)
     const positionsAhead = Math.max(5, Math.floor(newQueue.length / 2));
-    const insertPosition = Math.min(currentIndex + positionsAhead, newQueue.length);
+    const insertPosition = Math.min(index + positionsAhead, newQueue.length);
     newQueue.splice(insertPosition, 0, movedCard);
 
     setReviewQueue(newQueue);
     setCurrentIndex(0);
     setErrorPopup(null);
     setCanCloseErrorPopup(false);
+    setShowContinueButton(false);
     setIsFlipped(false);
-  }, [currentIndex, reviewQueue, canCloseErrorPopup]);
+  }, [currentIndex, reviewQueue]);
 
   const handleIncorrectAnswer = useCallback(() => {
     if (reviewQueue.length === 0) return;
@@ -167,6 +170,7 @@ export default function App() {
       // Show educational popup with random message
       const randomMessage = errorMessages[Math.floor(Math.random() * errorMessages.length)];
       setCanCloseErrorPopup(false);
+      setShowContinueButton(false);
       setErrorPopup({
         productName: currentCardData.front,
         code: currentCardData.back,
@@ -181,28 +185,20 @@ export default function App() {
       const savedIndex = currentIndex;
       const savedQueue = [...reviewQueue];
       
-      // Auto-close after 5 seconds
+      // Show continue button after 5 seconds
       setTimeout(() => {
+        setShowContinueButton(true);
         setCanCloseErrorPopup(true);
-        // Process the incorrect answer
-        spacedRepetitionService.recordIncorrectAnswer(savedCardId);
-        
-        const newQueue = [...savedQueue];
-        const [movedCard] = newQueue.splice(savedIndex, 1);
-        const positionsAhead = Math.max(5, Math.floor(newQueue.length / 2));
-        const insertPosition = Math.min(savedIndex + positionsAhead, newQueue.length);
-        newQueue.splice(insertPosition, 0, movedCard);
-        
-        setReviewQueue(newQueue);
-        setCurrentIndex(0);
-        setErrorPopup(null);
-        setCanCloseErrorPopup(false);
-        setIsFlipped(false);
       }, 5000);
+      
+      // Auto-close after 10 seconds
+      setTimeout(() => {
+        closeErrorPopup(savedCardId, savedIndex, savedQueue);
+      }, 10000);
     }
     
     setIsFlipped(false);
-  }, [currentIndex, reviewQueue, cards]);
+  }, [currentIndex, reviewQueue, cards, closeErrorPopup]);
 
   const handleReset = useCallback(() => {
     setIsClosing(false);
@@ -284,10 +280,17 @@ export default function App() {
               <p className="text-sm text-gray-700 leading-relaxed mb-4">
                 {errorPopup.message}
               </p>
-              {!canCloseErrorPopup && (
+              {!showContinueButton ? (
                 <div className="w-full bg-gray-200 text-gray-500 rounded-lg px-4 py-2 font-medium text-center">
                   Aguarde 5 segundos...
                 </div>
+              ) : (
+                <button
+                  onClick={() => closeErrorPopup()}
+                  className="w-full bg-green-600 text-white rounded-lg px-4 py-3 font-bold hover:bg-green-700 transition-colors shadow-lg"
+                >
+                  Continuar
+                </button>
               )}
             </div>
           </div>
