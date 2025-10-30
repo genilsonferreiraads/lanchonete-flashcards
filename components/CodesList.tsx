@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { CARDS } from '../constants';
+import { fetchProductsFromSupabase } from '../supabase';
 
 interface CodesListProps {
   onClose: () => void;
@@ -8,15 +9,32 @@ interface CodesListProps {
 
 const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [products, setProducts] = useState(CARDS);
+
+  // Buscar produtos do Supabase ao montar
+  React.useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const supabaseProducts = await fetchProductsFromSupabase();
+        if (supabaseProducts.length > 0) {
+          setProducts(supabaseProducts);
+        }
+      } catch (error) {
+        console.error('Failed to load products from Supabase:', error);
+      }
+    };
+
+    loadProducts();
+  }, []);
 
   // Ordenar os cards por código numérico
   const sortedCards = useMemo(() => {
-    return [...CARDS].sort((a, b) => {
+    return [...products].sort((a, b) => {
       const codeA = parseInt(a.back, 10);
       const codeB = parseInt(b.back, 10);
       return codeA - codeB;
     });
-  }, []);
+  }, [products]);
 
   // Filtrar cards baseado na busca
   const filteredCards = useMemo(() => {

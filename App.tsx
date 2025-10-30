@@ -7,13 +7,15 @@ import ProgressBar from './components/ProgressBar';
 import Tutorial from './components/Tutorial';
 import CodesList from './components/CodesList';
 import { spacedRepetitionService } from './spacedRepetition';
+import { fetchProductsFromSupabase } from './supabase';
 
 const shuffleArray = <T,>(array: T[]): T[] => {
   return [...array].sort(() => Math.random() - 0.5);
 };
 
 export default function App() {
-  const [cards] = useState<FlashcardData[]>(() => shuffleArray(CARDS));
+  const [cards, setCards] = useState<FlashcardData[]>(() => shuffleArray(CARDS));
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [reviewQueue, setReviewQueue] = useState<number[]>([]);
@@ -59,6 +61,28 @@ export default function App() {
     { title: "Foque no código!", message: "{product} tem o código {code}. Preste atenção neste número!" },
     { title: "Momento de estudo!", message: "O código de {product} é {code}. Tente visualizar e memorizar!" }
   ];
+
+  // Buscar produtos do Supabase ao carregar
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const supabaseProducts = await fetchProductsFromSupabase();
+        if (supabaseProducts.length > 0) {
+          // Usar produtos do Supabase
+          setCards(shuffleArray(supabaseProducts));
+        } else {
+          // Fallback para produtos locais se Supabase estiver vazio
+          console.log('Using local products as fallback');
+        }
+      } catch (error) {
+        console.error('Failed to load products from Supabase, using local fallback:', error);
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+
+    loadProducts();
+  }, []);
 
   // Limpar timeouts quando o componente desmontar
   useEffect(() => {
