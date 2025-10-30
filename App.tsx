@@ -382,15 +382,18 @@ export default function App() {
       setShowAddProduct(false);
       setShowLogin(false);
       
-      // Limpar sessão completamente
-      // O signOut do Supabase já remove a sessão, mas vamos garantir
-      // removendo também qualquer token/cache local
-      await supabase.auth.getSession().then(({ data }) => {
-        if (data.session) {
-          // Se ainda houver sessão, forçar remoção
-          localStorage.removeItem('sb-' + supabase.supabaseUrl.split('//')[1].split('.')[0] + '-auth-token');
-        }
-      });
+      // Verificar se a sessão foi realmente removida
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Se ainda houver sessão após signOut, limpar manualmente localStorage relacionados ao Supabase
+      if (session) {
+        // Limpar todas as chaves do localStorage relacionadas ao Supabase
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('supabase') || key.includes('sb-')) {
+            localStorage.removeItem(key);
+          }
+        });
+      }
       
       // Forçar atualização da página após um pequeno delay para garantir que o estado foi limpo
       setTimeout(() => {
