@@ -75,12 +75,18 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
 
   // Atualizar tentativas ao montar
   useEffect(() => {
-    setAttempts(getLoginAttempts());
+    const currentAttempts = getLoginAttempts();
+    setAttempts(currentAttempts);
+    
+    // Calcular tempo restante inicial se houver bloqueio
+    if (currentAttempts.lockoutUntil && Date.now() < currentAttempts.lockoutUntil) {
+      setTimeRemaining(currentAttempts.lockoutUntil - Date.now());
+    }
   }, []);
 
   // Timer para contar o tempo restante do bloqueio
   useEffect(() => {
-    if (attempts.lockoutUntil) {
+    if (attempts.lockoutUntil && Date.now() < attempts.lockoutUntil) {
       const interval = setInterval(() => {
         const now = Date.now();
         const remaining = Math.max(0, attempts.lockoutUntil! - now);
@@ -93,6 +99,8 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
       }, 1000);
       
       return () => clearInterval(interval);
+    } else {
+      setTimeRemaining(0);
     }
   }, [attempts.lockoutUntil]);
 
