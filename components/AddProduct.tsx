@@ -76,25 +76,58 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
         return;
       }
 
-      // Buscar o próximo ID disponível
-      const { data: existingProducts, error: fetchError } = await supabase
+      // Verificar se o código já existe antes de tentar inserir
+      const codeToCheck = code.trim();
+      const { data: existingProductWithCode, error: checkError } = await supabase
         .from('flashcard_products')
-        .select('id')
-        .order('id', { ascending: false })
+        .select('id, code, name')
+        .eq('code', codeToCheck)
         .limit(1);
 
-      if (fetchError) {
-        console.error('❌ Erro ao buscar produtos:', fetchError);
-        throw fetchError;
+      if (checkError) {
+        console.error('❌ Erro ao verificar código:', checkError);
+        setError('Erro ao verificar código. Tente novamente.');
+        setLoading(false);
+        return;
       }
 
-      const nextId = existingProducts && existingProducts.length > 0 
-        ? existingProducts[0].id + 1 
-        : 1;
+      // Se encontrou um produto com o mesmo código e não está editando esse produto
+      if (existingProductWithCode && existingProductWithCode.length > 0) {
+        const existing = existingProductWithCode[0];
+        
+        // Se está editando, permitir apenas se o código pertence ao produto que está sendo editado
+        if (!editingProduct || existing.id !== editingProduct.id) {
+          setError(`⚠️ O código ${codeToCheck} já está sendo usado pelo produto: "${existing.name}". Escolha outro código.`);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Buscar o próximo ID disponível (apenas para novos produtos)
+      let nextId: number;
+      if (editingProduct) {
+        // Se está editando, usar o ID existente
+        nextId = editingProduct.id;
+      } else {
+        const { data: existingProducts, error: fetchError } = await supabase
+          .from('flashcard_products')
+          .select('id')
+          .order('id', { ascending: false })
+          .limit(1);
+
+        if (fetchError) {
+          console.error('❌ Erro ao buscar produtos:', fetchError);
+          throw fetchError;
+        }
+
+        nextId = existingProducts && existingProducts.length > 0 
+          ? existingProducts[0].id + 1 
+          : 1;
+      }
 
       const newProduct = {
         id: nextId,
-        code: code.trim(),
+        code: codeToCheck,
         name: name.trim(),
       };
 
@@ -121,7 +154,20 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
         });
 
         if (insertError.code === '23505') {
-          setError('Este código já existe. Escolha outro código.');
+          // Violação de constraint UNIQUE - código duplicado
+          // Tentar buscar qual produto usa o código para mostrar mensagem mais clara
+          const { data: conflictingProduct } = await supabase
+            .from('flashcard_products')
+            .select('name')
+            .eq('code', code.trim())
+            .limit(1)
+            .single();
+          
+          if (conflictingProduct) {
+            setError(`⚠️ O código ${code.trim()} já está sendo usado pelo produto: "${conflictingProduct.name}". Escolha outro código.`);
+          } else {
+            setError(`⚠️ O código ${code.trim()} já existe. Escolha outro código.`);
+          }
         } else if (insertError.message.includes('permission denied') || insertError.message.includes('policy')) {
           setError('Erro de permissão. Verifique se as políticas RLS estão configuradas corretamente. Execute o arquivo supabase_auth_policy.sql no Supabase.');
         } else {
