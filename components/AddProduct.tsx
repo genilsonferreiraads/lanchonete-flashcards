@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../supabase';
-import { fetchProductsFromSupabase } from '../supabase';
+import { supabase, fetchProductsFromSupabase } from '../supabase';
 import type { FlashcardData } from '../types';
 
 interface AddProductProps {
