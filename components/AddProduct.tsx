@@ -48,17 +48,63 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
 
       // Se está editando
       if (editingProduct) {
+        const codeToCheck = code.trim();
+        
+        // Verificar se o código já existe em outro produto antes de atualizar
+        const { data: existingProductWithCode, error: checkError } = await supabase
+          .from('flashcard_products')
+          .select('id, code, name')
+          .eq('code', codeToCheck)
+          .limit(1);
+
+        if (checkError) {
+          console.error('❌ Erro ao verificar código:', checkError);
+          setError('Erro ao verificar código. Tente novamente.');
+          setLoading(false);
+          return;
+        }
+
+        // Se encontrou um produto com o mesmo código e não é o produto sendo editado
+        if (existingProductWithCode && existingProductWithCode.length > 0) {
+          const existing = existingProductWithCode[0];
+          
+          // Permitir apenas se é o próprio produto que está sendo editado
+          if (existing.id !== editingProduct.id) {
+            setError(`⚠️ O código ${codeToCheck} já está sendo usado pelo produto: "${existing.name}". Escolha outro código.`);
+            setLoading(false);
+            return;
+          }
+        }
+
         const { error: updateError } = await supabase
           .from('flashcard_products')
           .update({
-            code: code.trim(),
+            code: codeToCheck,
             name: name.trim(),
           })
           .eq('id', editingProduct.id);
 
         if (updateError) {
           console.error('❌ Erro ao atualizar:', updateError);
-          setError(updateError.message || 'Erro ao atualizar produto');
+          
+          // Tratar erro de código duplicado na atualização
+          if (updateError.code === '23505') {
+            const { data: conflictingProduct } = await supabase
+              .from('flashcard_products')
+              .select('name')
+              .eq('code', codeToCheck)
+              .limit(1)
+              .single();
+            
+            if (conflictingProduct) {
+              setError(`⚠️ O código ${codeToCheck} já está sendo usado pelo produto: "${conflictingProduct.name}". Escolha outro código.`);
+            } else {
+              setError(`⚠️ O código ${codeToCheck} já existe. Escolha outro código.`);
+            }
+          } else {
+            setError(updateError.message || 'Erro ao atualizar produto');
+          }
+          setLoading(false);
           return;
         }
 
