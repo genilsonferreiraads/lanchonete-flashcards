@@ -91,12 +91,15 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
         return;
       }
 
-      // Se encontrou um produto com o mesmo código e não está editando esse produto
+      // Se encontrou um produto com o mesmo código
       if (existingProductWithCode && existingProductWithCode.length > 0) {
         const existing = existingProductWithCode[0];
         
-        // Se está editando, permitir apenas se o código pertence ao produto que está sendo editado
-        if (!editingProduct || existing.id !== editingProduct.id) {
+        // Permitir apenas se está editando o próprio produto (mantém o mesmo código)
+        if (editingProduct && existing.id === editingProduct.id) {
+          // É o mesmo produto, pode continuar com o mesmo código
+        } else {
+          // Código já usado por outro produto
           setError(`⚠️ O código ${codeToCheck} já está sendo usado pelo produto: "${existing.name}". Escolha outro código.`);
           setLoading(false);
           return;
