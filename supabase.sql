@@ -116,6 +116,7 @@ INSERT INTO flashcard_products (id, code, name) VALUES
 (119, '119', 'Meia Sopa Costela'),
 (120, '120', 'Meia Sopa Frango'),
 (121, '121', 'Meia Sopa c. Moída'),
+(122, '117', 'Sopa de Frango'),
 (174, '174', 'Suco de Laranja'),
 (175, '175', 'Jarra de Laranja'),
 (155, '155', 'Porção de Cuscuz'),
@@ -124,8 +125,7 @@ INSERT INTO flashcard_products (id, code, name) VALUES
 (161, '161', 'Porção de Costela'),
 (160, '160', 'Porção de Frango'),
 (159, '159', 'Porção de Bife'),
-(158, '158', 'Porção de Sol'),
-(121, '117', 'Sopa de Frango')
+(158, '158', 'Porção de Sol')
 ON CONFLICT (id) DO UPDATE 
 SET code = EXCLUDED.code, 
     name = EXCLUDED.name,
