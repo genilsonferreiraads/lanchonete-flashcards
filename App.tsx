@@ -329,17 +329,17 @@ export default function App() {
           <div className="layout-content-container flex flex-col w-full max-w-md flex-1">
             <header className="w-full py-8 text-center relative">
               <h1 className="text-3xl font-bold tracking-tight text-text-light-primary">Lanchonete Limarques</h1>
-              <div className="absolute top-0 right-0 flex gap-3">
+              <div className="absolute top-0 right-0 flex gap-2">
                 <button 
                   onClick={handleOpenCodesList}
-                  className="text-xs opacity-40 hover:opacity-70 transition-opacity text-green-600"
+                  className="px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
                   title="Ver códigos"
                 >
                   Ver Códigos
                 </button>
                 <button 
                   onClick={handleOpenTutorial}
-                  className="text-xs opacity-40 hover:opacity-70 transition-opacity text-green-600"
+                  className="px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
                   title="Ver tutorial"
                 >
                   Tutorial
