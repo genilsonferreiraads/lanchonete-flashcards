@@ -116,7 +116,7 @@ export const CARDS: FlashcardData[] = [
   { id: 136, front: capitalizeText("Macaxeira c. Costela"), back: "136" },
   { id: 137, front: capitalizeText("Macaxeira c. Frango"), back: "137" },
   { id: 300, front: capitalizeText("Macaxeira c. Bode"), back: "300" },
-  { id: 117, front: capitalizeText("Sopa de Frango"), back: "117" },
+  { id: 122, front: capitalizeText("Sopa de Frango"), back: "117" },
   { id: 118, front: capitalizeText("Sopa de Carne Moída"), back: "118" },
   { id: 119, front: capitalizeText("Meia Sopa Costela"), back: "119" },
   { id: 120, front: capitalizeText("Meia Sopa Frango"), back: "120" },
