@@ -6,6 +6,58 @@ interface LoginProps {
   onClose: () => void;
 }
 
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutos em milissegundos
+const STORAGE_KEY = 'login_attempts';
+
+interface LoginAttempts {
+  count: number;
+  lockoutUntil: number | null;
+}
+
+const getLoginAttempts = (): LoginAttempts => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const data = JSON.parse(stored);
+      const now = Date.now();
+      
+      // Se o bloqueio expirou, resetar
+      if (data.lockoutUntil && now > data.lockoutUntil) {
+        localStorage.removeItem(STORAGE_KEY);
+        return { count: 0, lockoutUntil: null };
+      }
+      
+      return data;
+    }
+  } catch (error) {
+    console.error('Error reading login attempts:', error);
+  }
+  return { count: 0, lockoutUntil: null };
+};
+
+const incrementLoginAttempts = (): LoginAttempts => {
+  const attempts = getLoginAttempts();
+  const newCount = attempts.count + 1;
+  
+  let lockoutUntil: number | null = null;
+  if (newCount >= MAX_ATTEMPTS) {
+    lockoutUntil = Date.now() + LOCKOUT_DURATION;
+  }
+  
+  const newData: LoginAttempts = {
+    count: newCount,
+    lockoutUntil,
+  };
+  
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+  return newData;
+};
+
+const resetLoginAttempts = (): void => {
+  localStorage.removeItem(STORAGE_KEY);
+};
+
 const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -13,19 +65,60 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
   const [error, setError] = useState('');
   const [isVisible, setIsVisible] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [attempts, setAttempts] = useState<LoginAttempts>(getLoginAttempts());
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
 
   // Animação de entrada
   useEffect(() => {
     setTimeout(() => setIsVisible(true), 10);
   }, []);
 
+  // Atualizar tentativas ao montar
+  useEffect(() => {
+    setAttempts(getLoginAttempts());
+  }, []);
+
+  // Timer para contar o tempo restante do bloqueio
+  useEffect(() => {
+    if (attempts.lockoutUntil) {
+      const interval = setInterval(() => {
+        const now = Date.now();
+        const remaining = Math.max(0, attempts.lockoutUntil! - now);
+        setTimeRemaining(remaining);
+        
+        if (remaining <= 0) {
+          resetLoginAttempts();
+          setAttempts({ count: 0, lockoutUntil: null });
+        }
+      }, 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [attempts.lockoutUntil]);
+
   const handleClose = () => {
     setIsVisible(false);
     setTimeout(() => onClose(), 300); // Aguardar animação de saída
   };
 
+  const formatTimeRemaining = (ms: number): string => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Verificar se está bloqueado
+    const currentAttempts = getLoginAttempts();
+    if (currentAttempts.lockoutUntil && Date.now() < currentAttempts.lockoutUntil) {
+      const remaining = currentAttempts.lockoutUntil - Date.now();
+      setError(`Acesso bloqueado por ${MAX_ATTEMPTS} tentativas falhas. Aguarde ${formatTimeRemaining(remaining)} antes de tentar novamente.`);
+      setAttempts(currentAttempts);
+      return;
+    }
+    
     setLoading(true);
     setError('');
 
@@ -51,19 +144,34 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
       if (loginError) {
         console.error('Login error details:', loginError);
         
-        // Mensagens de erro mais específicas
-        if (loginError.message.includes('Email logins are disabled') || loginError.message.includes('email is disabled')) {
-          setError('Login por email está desabilitado. Por favor, habilite o Email Provider no Supabase Dashboard (Authentication → Providers → Email)');
-        } else if (loginError.message.includes('Invalid login credentials')) {
-          setError('Email ou senha incorretos');
-        } else if (loginError.message.includes('Email not confirmed')) {
-          setError('Por favor, confirme seu email antes de fazer login');
-        } else if (loginError.message.includes('Email rate limit')) {
-          setError('Muitas tentativas. Aguarde alguns minutos.');
+        // Incrementar tentativas apenas em erro de credenciais
+        if (loginError.message.includes('Invalid login credentials')) {
+          const newAttempts = incrementLoginAttempts();
+          setAttempts(newAttempts);
+          
+          const remainingAttempts = MAX_ATTEMPTS - newAttempts.count;
+          
+          if (newAttempts.lockoutUntil) {
+            setError(`Muitas tentativas falhas. Acesso bloqueado por 15 minutos por segurança.`);
+          } else {
+            setError(`Email ou senha incorretos. ${remainingAttempts > 0 ? `${remainingAttempts} tentativa${remainingAttempts > 1 ? 's' : ''} restante${remainingAttempts > 1 ? 's' : ''}.` : 'Última tentativa!'}`);
+          }
         } else {
-          setError(loginError.message || 'Erro ao fazer login');
+          // Mensagens de erro mais específicas para outros erros
+          if (loginError.message.includes('Email logins are disabled') || loginError.message.includes('email is disabled')) {
+            setError('Login por email está desabilitado. Por favor, habilite o Email Provider no Supabase Dashboard (Authentication → Providers → Email)');
+          } else if (loginError.message.includes('Email not confirmed')) {
+            setError('Por favor, confirme seu email antes de fazer login');
+          } else if (loginError.message.includes('Email rate limit')) {
+            setError('Muitas tentativas. Aguarde alguns minutos.');
+          } else {
+            setError(loginError.message || 'Erro ao fazer login');
+          }
         }
       } else if (data?.user) {
+        // Login bem-sucedido - resetar tentativas
+        resetLoginAttempts();
+        setAttempts({ count: 0, lockoutUntil: null });
         onLoginSuccess();
       } else {
         setError('Erro desconhecido ao fazer login');
@@ -176,11 +284,17 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (attempts.lockoutUntil !== null && Date.now() < attempts.lockoutUntil)}
               className="w-full bg-green-600 text-white rounded-lg px-6 py-4 text-lg font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
             >
-              {loading ? 'Entrando...' : 'Entrar'}
+              {loading ? 'Entrando...' : attempts.lockoutUntil && Date.now() < attempts.lockoutUntil ? `Bloqueado (${formatTimeRemaining(timeRemaining)})` : 'Entrar'}
             </button>
+            
+            {attempts.count > 0 && attempts.count < MAX_ATTEMPTS && !attempts.lockoutUntil && (
+              <p className="text-sm text-center text-orange-600">
+                ⚠️ {attempts.count} de {MAX_ATTEMPTS} tentativas falhas
+              </p>
+            )}
           </form>
         </div>
       </div>
