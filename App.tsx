@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { CARDS } from './constants';
 import type { FlashcardData } from './types';
 import Flashcard from './components/Flashcard';
@@ -42,6 +42,9 @@ export default function App() {
   const [showContinueButton, setShowContinueButton] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showCodesList, setShowCodesList] = useState(false);
+  
+  // Refs para armazenar os timeouts do popup de erro
+  const errorPopupTimeoutsRef = useRef<{ showButton?: NodeJS.Timeout; autoClose?: NodeJS.Timeout }>({});
 
   // Educational messages variations
   const errorMessages = [
@@ -56,6 +59,18 @@ export default function App() {
     { title: "Foque no código!", message: "{product} tem o código {code}. Preste atenção neste número!" },
     { title: "Momento de estudo!", message: "O código de {product} é {code}. Tente visualizar e memorizar!" }
   ];
+
+  // Limpar timeouts quando o componente desmontar
+  useEffect(() => {
+    return () => {
+      if (errorPopupTimeoutsRef.current.showButton) {
+        clearTimeout(errorPopupTimeoutsRef.current.showButton);
+      }
+      if (errorPopupTimeoutsRef.current.autoClose) {
+        clearTimeout(errorPopupTimeoutsRef.current.autoClose);
+      }
+    };
+  }, []);
 
   // Check if tutorial should be shown (first time only)
   useEffect(() => {
@@ -135,6 +150,16 @@ export default function App() {
   }, [currentIndex, reviewQueue, correctAnswers]);
 
   const closeErrorPopup = useCallback((savedCardId?: number, savedIndex?: number, savedQueue?: number[]) => {
+    // Limpar todos os timeouts
+    if (errorPopupTimeoutsRef.current.showButton) {
+      clearTimeout(errorPopupTimeoutsRef.current.showButton);
+      errorPopupTimeoutsRef.current.showButton = undefined;
+    }
+    if (errorPopupTimeoutsRef.current.autoClose) {
+      clearTimeout(errorPopupTimeoutsRef.current.autoClose);
+      errorPopupTimeoutsRef.current.autoClose = undefined;
+    }
+
     const cardId = savedCardId ?? reviewQueue[currentIndex];
     const index = savedIndex ?? currentIndex;
     const queue = savedQueue ?? reviewQueue;
@@ -163,6 +188,16 @@ export default function App() {
   const handleIncorrectAnswer = useCallback(() => {
     if (reviewQueue.length === 0) return;
     
+    // Limpar timeouts anteriores se existirem
+    if (errorPopupTimeoutsRef.current.showButton) {
+      clearTimeout(errorPopupTimeoutsRef.current.showButton);
+      errorPopupTimeoutsRef.current.showButton = undefined;
+    }
+    if (errorPopupTimeoutsRef.current.autoClose) {
+      clearTimeout(errorPopupTimeoutsRef.current.autoClose);
+      errorPopupTimeoutsRef.current.autoClose = undefined;
+    }
+    
     const cardId = reviewQueue[currentIndex];
     const currentCardData = cards.find(c => c.id === cardId);
     
@@ -186,13 +221,13 @@ export default function App() {
       const savedQueue = [...reviewQueue];
       
       // Show continue button after 5 seconds
-      setTimeout(() => {
+      errorPopupTimeoutsRef.current.showButton = setTimeout(() => {
         setShowContinueButton(true);
         setCanCloseErrorPopup(true);
       }, 5000);
       
       // Auto-close after 10 seconds
-      setTimeout(() => {
+      errorPopupTimeoutsRef.current.autoClose = setTimeout(() => {
         closeErrorPopup(savedCardId, savedIndex, savedQueue);
       }, 10000);
     }
