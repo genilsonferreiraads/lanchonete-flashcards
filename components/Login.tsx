@@ -92,12 +92,12 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
         <div className={`max-w-md w-full space-y-6 transition-all duration-300 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="text-center">
             <h1 className="text-4xl font-bold text-gray-900 mb-2">Lanchonete Limarques</h1>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-red-50 border border-red-200 rounded-full mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-red-600">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-50 border border-green-200 rounded-full mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
               </svg>
-              <span className="text-sm font-semibold text-red-700">Acesso Restrito</span>
+              <span className="text-sm font-semibold text-green-700">Acesso Restrito</span>
             </div>
             <p className="text-base text-gray-600">Entre para gerenciar produtos</p>
           </div>
