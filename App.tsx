@@ -4,7 +4,7 @@ import { CARDS } from './constants';
 import type { FlashcardData } from './types';
 import Flashcard from './components/Flashcard';
 import ProgressBar from './components/ProgressBar';
-import Tutorial from './components/Tutorial';
+
 import CodesList from './components/CodesList';
 import Login from './components/Login';
 import AddProduct from './components/AddProduct';
@@ -38,13 +38,14 @@ export default function App() {
     }
   });
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [filterCategory, setFilterCategory] = useState<'active' | 'all' | 'high' | 'medium' | 'low'>('active');
   const [showResetMenu, setShowResetMenu] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
   const [errorPopup, setErrorPopup] = useState<{ productName: string; code: string; message: string; title: string } | null>(null);
   const [canCloseErrorPopup, setCanCloseErrorPopup] = useState(false);
   const [showContinueButton, setShowContinueButton] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
+
   const [showCodesList, setShowCodesList] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -160,34 +161,133 @@ export default function App() {
     };
   }, []);
 
-  // Check if tutorial should be shown (first time only)
-  useEffect(() => {
-    const hasSeenTutorial = localStorage.getItem('hasSeenTutorial');
-    const hasProgress = localStorage.getItem('spaced_repetition_state');
-    
-    // Show tutorial if never seen AND no progress exists (first time user)
-    if (!hasSeenTutorial && !hasProgress) {
-      setShowTutorial(true);
+
+
+  // Lógica de desbloqueio progressivo e filtragem de cartões ativos
+  const activeCards = useMemo(() => {
+    const isCardLearned = (id: number) => {
+      const stats = spacedRepetitionService.getCardStats(id);
+      return stats ? stats.repetitions >= 3 : false;
+    };
+
+    const highCards = cards.filter(c => !c.usage_category || c.usage_category === 'high');
+    const mediumCards = cards.filter(c => c.usage_category === 'medium');
+    const lowCards = cards.filter(c => c.usage_category === 'low');
+
+    if (filterCategory === 'high') return highCards;
+    if (filterCategory === 'medium') return mediumCards;
+    if (filterCategory === 'low') return lowCards;
+    if (filterCategory === 'all') return cards;
+
+    const unlearnedHigh = highCards.filter(c => !isCardLearned(c.id));
+    const unlearnedMedium = mediumCards.filter(c => !isCardLearned(c.id));
+
+    if (unlearnedHigh.length > 0 && highCards.length > 0) {
+      // Se houver cartões de alta prioridade não aprendidos, foca neles
+      return highCards;
+    } else if (unlearnedMedium.length > 0 && mediumCards.length > 0) {
+      // Se todos de alta prioridade foram aprendidos, desbloqueia média prioridade
+      return [...highCards, ...mediumCards];
+    } else {
+      // Se todos de alta e média prioridade foram aprendidos, desbloqueia tudo
+      return cards;
     }
-  }, []);
+  }, [cards, forceUpdate, filterCategory]);
+
+  // Informações detalhadas sobre a fase atual de aprendizado para a interface
+  const currentPhaseInfo = useMemo(() => {
+    const isCardLearned = (id: number) => {
+      const stats = spacedRepetitionService.getCardStats(id);
+      return stats ? stats.repetitions >= 3 : false;
+    };
+
+    const highCards = cards.filter(c => !c.usage_category || c.usage_category === 'high');
+    const mediumCards = cards.filter(c => c.usage_category === 'medium');
+    const lowCards = cards.filter(c => c.usage_category === 'low');
+
+    const unlearnedHigh = highCards.filter(c => !isCardLearned(c.id));
+    const unlearnedMedium = mediumCards.filter(c => !isCardLearned(c.id));
+    const unlearnedLow = lowCards.filter(c => !isCardLearned(c.id));
+
+    if (filterCategory === 'high') {
+      return {
+        level: 'high',
+        name: 'Filtro: Apenas Muito Usados',
+        description: 'Treinando exclusivamente os códigos de alta importância.',
+        learnedCount: highCards.length - unlearnedHigh.length,
+        totalCount: highCards.length,
+      };
+    } else if (filterCategory === 'medium') {
+      return {
+        level: 'medium',
+        name: 'Filtro: Apenas Usados às Vezes',
+        description: 'Treinando exclusivamente os códigos de média importância.',
+        learnedCount: mediumCards.length - unlearnedMedium.length,
+        totalCount: mediumCards.length,
+      };
+    } else if (filterCategory === 'low') {
+      return {
+        level: 'low',
+        name: 'Filtro: Apenas Pouco Usados',
+        description: 'Treinando exclusivamente os códigos de baixa importância.',
+        learnedCount: lowCards.length - unlearnedLow.length,
+        totalCount: lowCards.length,
+      };
+    } else if (filterCategory === 'all') {
+      const unlearnedAll = cards.filter(c => !isCardLearned(c.id));
+      return {
+        level: 'all',
+        name: 'Filtro: Todos os Códigos',
+        description: 'Treinando todos os códigos do sistema em ordem de importância.',
+        learnedCount: cards.length - unlearnedAll.length,
+        totalCount: cards.length,
+      };
+    }
+
+    if (unlearnedHigh.length > 0 && highCards.length > 0) {
+      return {
+        level: 'high',
+        name: 'Fase 1: Códigos Mais Usados',
+        description: 'Foco nos códigos essenciais do dia a dia da lanchonete.',
+        learnedCount: highCards.length - unlearnedHigh.length,
+        totalCount: highCards.length,
+      };
+    } else if (unlearnedMedium.length > 0 && mediumCards.length > 0) {
+      return {
+        level: 'medium',
+        name: 'Fase 2: Códigos Usados às Vezes',
+        description: 'Muito bem! Você desbloqueou os códigos intermediários.',
+        learnedCount: mediumCards.length - unlearnedMedium.length,
+        totalCount: mediumCards.length,
+      };
+    } else {
+      return {
+        level: 'all',
+        name: 'Fase 3: Todos os Códigos',
+        description: 'Incrível! Você já domina a maior parte e agora treina o nível completo.',
+        learnedCount: cards.length,
+        totalCount: cards.length,
+      };
+    }
+  }, [cards, forceUpdate, filterCategory]);
 
   // Initialize review queue with all cards due for review
   useEffect(() => {
     const now = Date.now();
-    const cardIds = cards.map(c => c.id);
+    const activeCardIds = activeCards.map(c => c.id);
     
     // Get cards that are due for review OR have never been initialized
-    const due = cardIds.filter(id => {
+    const due = activeCardIds.filter(id => {
       const stats = spacedRepetitionService.getCardStats(id);
       if (!stats) return true; // New cards
       return stats.nextReview <= now; // Due for review
     });
 
-    // If no cards are due, show all cards (allow unlimited reviews)
-    const cardsToReview = due.length > 0 ? due : cardIds;
+    // If no cards are due, show all active cards (allow unlimited reviews)
+    const cardsToReview = due.length > 0 ? due : activeCardIds;
 
     // Sort by priority
-    const sorted = spacedRepetitionService.sortCardsByPriority(cardsToReview);
+    const sorted = spacedRepetitionService.sortCardsByPriority(cardsToReview, cards);
     setReviewQueue(sorted);
     
     // Check if it's a new day and reset if needed
@@ -201,7 +301,7 @@ export default function App() {
     }
     
     setCurrentIndex(0);
-  }, [cards, forceUpdate]);
+  }, [activeCards, cards]);
 
   const handleFlip = useCallback(() => {
     setIsFlipped(prev => !prev);
@@ -334,18 +434,11 @@ export default function App() {
   const confirmReset = useCallback(() => {
     localStorage.removeItem('spaced_repetition_state');
     localStorage.removeItem('correctAnswers');
-    localStorage.removeItem('hasSeenTutorial');
+
     window.location.reload();
   }, []);
 
-  const handleTutorialClose = useCallback(() => {
-    localStorage.setItem('hasSeenTutorial', 'true');
-    setShowTutorial(false);
-  }, []);
 
-  const handleOpenTutorial = useCallback(() => {
-    setShowTutorial(true);
-  }, []);
 
   const handleOpenCodesList = useCallback(() => {
     setShowCodesList(true);
@@ -425,7 +518,7 @@ export default function App() {
 
   const hasCards = reviewQueue.length > 0;
   const totalCards = cards.length;
-  const totalCardsToLearn = totalCards;
+  const totalCardsToLearn = activeCards.length;
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
@@ -438,9 +531,7 @@ export default function App() {
       {showCodesList && (
         <CodesList onClose={handleCloseCodesList} />
       )}
-      {showTutorial && (
-        <Tutorial onClose={handleTutorialClose} />
-      )}
+
       {errorPopup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-sm mx-4 shadow-xl">
@@ -480,30 +571,31 @@ export default function App() {
       )}
       {showResetMenu && (
         <div 
-          className={`fixed inset-0 bg-black/40 flex items-center justify-center z-50 transition-opacity duration-300 ${
+          className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-300 ${
             isClosing ? 'opacity-0' : isOpening ? 'opacity-100' : 'opacity-0'
           }`}
           onClick={cancelReset}
         >
           <div 
-            className={`bg-white rounded-lg p-5 max-w-xs mx-4 shadow-lg transition-all duration-300 ease-out ${
+            className={`bg-white rounded-2xl p-6 max-w-xs w-full mx-4 shadow-xl border border-slate-100 transition-all duration-300 ease-out ${
               isClosing ? 'opacity-0 scale-95' : isOpening ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
             }`}
             onClick={(e) => e.stopPropagation()}
           >
-            <p className="text-sm text-gray-700 mb-4 text-center">Resetar progresso?</p>
-            <div className="flex gap-2">
+            <h3 className="font-bold text-slate-800 text-lg text-center mb-2">Resetar Progresso?</h3>
+            <p className="text-xs text-slate-500 mb-6 text-center leading-relaxed">Isso irá apagar todo o seu progresso de aprendizado e histórico de acertos no dispositivo.</p>
+            <div className="flex gap-2.5">
               <button
                 onClick={cancelReset}
-                className="flex-1 bg-gray-100 text-gray-700 rounded px-3 py-2 hover:bg-gray-200 transition-colors text-sm"
+                className="flex-1 bg-slate-100 text-slate-700 rounded-xl px-4 py-2.5 font-bold hover:bg-slate-200 transition-colors text-sm"
               >
                 Cancelar
               </button>
               <button
                 onClick={confirmReset}
-                className="flex-1 bg-green-600 text-white rounded px-3 py-2 hover:bg-green-700 transition-colors text-sm font-medium"
+                className="flex-1 bg-rose-500 text-white rounded-xl px-4 py-2.5 hover:bg-rose-600 transition-colors text-sm font-bold shadow-md shadow-rose-500/10"
               >
-                Confirmar
+                Resetar
               </button>
             </div>
           </div>
@@ -512,95 +604,161 @@ export default function App() {
       <div className="layout-container flex h-full grow flex-col">
         <div className="flex flex-1 justify-center p-4 sm:p-6 md:p-8">
           <div className="layout-content-container flex flex-col w-full max-w-md flex-1">
-            <header className="w-full py-8 text-center relative">
-              <h1 className="text-3xl font-bold tracking-tight text-text-light-primary">Lanchonete Limarques</h1>
-              <div className="absolute top-0 right-0 flex gap-2 items-center">
+            <header className="w-full py-4 px-4 flex justify-between items-center border border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-40 rounded-2xl shadow-sm mb-6">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shadow-md shadow-emerald-500/20 text-white font-extrabold text-base">L</div>
+                <h1 className="text-lg font-black tracking-tight text-slate-800">Limarques <span className="text-emerald-500 font-medium text-xs">Flashcards</span></h1>
+              </div>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={handleOpenCodesList}
+                  className="p-2 text-xs font-bold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center gap-1"
+                  title="Ver códigos"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                  <span className="hidden sm:inline">Códigos</span>
+                </button>
                 <button 
                   onClick={handleAddProductClick}
-                  className="w-8 h-8 flex items-center justify-center bg-green-600 text-white rounded-full hover:bg-green-700 transition-all duration-200 hover:scale-110 active:scale-95 shadow-lg"
-                  title={isAuthenticated ? "Adicionar produto" : "Fazer login para adicionar produto"}
+                  className="p-2 text-xs font-bold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center gap-1"
+                  title={isAuthenticated ? "Gerenciar produtos" : "Entrar como admin"}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                  <span className="hidden sm:inline">Painel</span>
                 </button>
                 {isAuthenticated && (
                   <button 
                     onClick={handleLogout}
-                    className="text-xs opacity-50 hover:opacity-80 transition-opacity text-gray-600"
+                    className="p-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
                     title="Sair"
                   >
                     Sair
                   </button>
                 )}
                 <button 
-                  onClick={handleOpenCodesList}
-                  className="px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
-                  title="Ver códigos"
-                >
-                  Ver Códigos
-                </button>
-                <button 
-                  onClick={handleOpenTutorial}
-                  className="px-3 py-1.5 text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
-                  title="Ver tutorial"
-                >
-                  Tutorial
-                </button>
-                <button 
                   onClick={handleReset}
-                  className="text-xs opacity-30 hover:opacity-60 transition-opacity"
+                  className="p-2 text-xs text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all ml-0.5"
                   title="Resetar progresso"
                 >
-                  Reset
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
                 </button>
               </div>
             </header>
             
-            <main className="flex-grow flex flex-col justify-center gap-8">
+            <main className="flex-grow flex flex-col justify-center gap-6 sm:gap-8">
+              {/* Filtros de Categoria */}
+              <div className="flex gap-1.5 px-4 overflow-x-auto no-scrollbar scroll-smooth pb-1">
+                <button
+                  onClick={() => setFilterCategory('active')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
+                    filterCategory === 'active'
+                      ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-500/10'
+                      : 'bg-white text-slate-600 border-slate-100 hover:bg-slate-50'
+                  }`}
+                >
+                  💡 Sugerido (Fases)
+                </button>
+                <button
+                  onClick={() => setFilterCategory('all')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
+                    filterCategory === 'all'
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-100 hover:bg-slate-50'
+                  }`}
+                >
+                  Todos
+                </button>
+                <button
+                  onClick={() => setFilterCategory('high')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
+                    filterCategory === 'high'
+                      ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-100 hover:bg-slate-50'
+                  }`}
+                >
+                  Muito Usados
+                </button>
+                <button
+                  onClick={() => setFilterCategory('medium')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
+                    filterCategory === 'medium'
+                      ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-100 hover:bg-slate-50'
+                  }`}
+                >
+                  Usados às Vezes
+                </button>
+                <button
+                  onClick={() => setFilterCategory('low')}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
+                    filterCategory === 'low'
+                      ? 'bg-slate-500 text-white border-slate-500 shadow-sm'
+                      : 'bg-white text-slate-600 border-slate-100 hover:bg-slate-50'
+                  }`}
+                >
+                  Pouco Usados
+                </button>
+              </div>
+
               {hasCards ? (
                 <>
-                  <ProgressBar current={correctAnswers.size} total={totalCardsToLearn} />
+                  {/* Card de Progresso e Fase */}
+                  <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mx-4 flex flex-col gap-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        {currentPhaseInfo.name}
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        {currentPhaseInfo.learnedCount}/{currentPhaseInfo.totalCount} dominados
+                      </span>
+                    </div>
+                    <ProgressBar current={correctAnswers.size} total={totalCardsToLearn} />
+                  </div>
                   
-                  <div className="px-4">
+                  <div className="px-4 py-2 relative flex-grow flex items-center justify-center min-h-[220px]">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-100/30 rounded-full blur-3xl -z-10"></div>
                     {currentCard && (
-                      <Flashcard 
-                        frontContent={currentCard.front}
-                        backContent={currentCard.back}
-                        isFlipped={isFlipped}
-                        onFlip={handleFlip}
-                      />
+                      <div className="w-full max-w-sm">
+                        <Flashcard 
+                          frontContent={currentCard.front}
+                          backContent={currentCard.back}
+                          isFlipped={isFlipped}
+                          onFlip={handleFlip}
+                        />
+                      </div>
                     )}
                   </div>
 
-                  <div className={`flex flex-1 gap-4 flex-wrap px-4 pt-4 justify-between transition-opacity duration-300 ${isFlipped ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+                  <div className={`flex gap-3 px-4 transition-all duration-300 overflow-hidden ${
+                    isFlipped ? 'max-h-20 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0 pointer-events-none'
+                  }`}>
                     <button 
                       onClick={handleIncorrectAnswer}
                       tabIndex={isFlipped ? 0 : -1}
-                      className="flex-1 flex gap-2 min-w-[84px] items-center justify-center overflow-hidden rounded-full h-14 px-5 bg-white text-danger text-lg font-bold leading-normal tracking-[0.015em] border-2 border-danger hover:bg-danger/10 active:bg-danger/20 transition-all duration-200"
+                      className="flex-1 flex gap-2 items-center justify-center rounded-2xl h-14 bg-white text-rose-500 text-base font-bold border border-rose-200 hover:bg-rose-50 active:scale-95 transition-all duration-200 shadow-sm"
                       aria-hidden={!isFlipped}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                      <span className="truncate">Errei</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      <span>Errei</span>
                     </button>
                     <button 
                       onClick={handleCorrectAnswer}
                       tabIndex={isFlipped ? 0 : -1}
-                      className="flex-1 flex gap-2 min-w-[84px] items-center justify-center overflow-hidden rounded-full h-14 px-5 bg-primary text-white text-lg font-bold leading-normal tracking-[0.015em] hover:opacity-90 active:scale-95 transition-all duration-200"
+                      className="flex-1 flex gap-2 items-center justify-center rounded-2xl h-14 bg-emerald-500 text-white text-base font-bold hover:bg-emerald-600 active:scale-95 transition-all duration-200 shadow-md shadow-emerald-500/20"
                       aria-hidden={!isFlipped}
                     >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      <span className="truncate">Acertei</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      <span>Acertei</span>
                     </button>
                   </div>
                 </>
               ) : (
-                <div className="flex flex-col items-center justify-center gap-4 text-center">
-                  <div className="text-6xl">🎉</div>
-                  <h2 className="text-2xl font-bold">Parabéns!</h2>
-                  <p className="text-lg opacity-75">Você completou todas as revisões de hoje.</p>
-                  <p className="text-sm opacity-60">Volte amanhã para continuar aprendendo!</p>
+                <div className="flex flex-col items-center justify-center gap-5 text-center py-12 px-6 bg-white border border-slate-100 rounded-3xl shadow-sm mx-4">
+                  <div className="text-6xl animate-bounce">🎉</div>
+                  <h2 className="text-2xl font-black text-slate-800">Parabéns!</h2>
+                  <p className="text-sm text-slate-600 leading-relaxed max-w-xs">Você completou todas as revisões de hoje para os cartões desta fase.</p>
+                  <p className="text-[11px] text-slate-400 font-medium">Volte amanhã para continuar praticando ou adicione novos produtos!</p>
                 </div>
               )}
             </main>

@@ -14,6 +14,7 @@ interface Product extends FlashcardData {
 const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
+  const [usageCategory, setUsageCategory] = useState<'high' | 'medium' | 'low'>('high');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -81,6 +82,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
           .update({
             code: codeToCheck,
             name: name.trim(),
+            usage_category: usageCategory,
           })
           .eq('id', editingProduct.id);
 
@@ -112,6 +114,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
         setSuccess(true);
         setCode('');
         setName('');
+        setUsageCategory('high');
         setEditingProduct(null);
         
         setTimeout(() => {
@@ -178,6 +181,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
         id: nextId,
         code: codeToCheck,
         name: name.trim(),
+        usage_category: usageCategory,
       };
 
       console.log('💾 Tentando inserir:', newProduct);
@@ -227,6 +231,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
         setSuccess(true);
         setCode('');
         setName('');
+        setUsageCategory('high');
         
         setTimeout(() => {
           setSuccess(false);
@@ -265,6 +270,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
     setEditingProduct(product);
     setCode(product.back);
     setName(product.front);
+    setUsageCategory(product.usage_category || 'high');
     setError('');
     setSuccess(false);
     setExpandedProductId(null); // Fechar a barra ao editar
@@ -276,6 +282,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
     setEditingProduct(null);
     setCode('');
     setName('');
+    setUsageCategory('high');
     setError('');
     setSuccess(false);
   };
@@ -366,7 +373,7 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-2">
                     Código *
@@ -398,6 +405,22 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
                     placeholder="Ex: Novo Produto"
                   />
+                </div>
+
+                <div>
+                  <label htmlFor="usageCategory" className="block text-sm font-medium text-gray-700 mb-2">
+                    Classificação *
+                  </label>
+                  <select
+                    id="usageCategory"
+                    value={usageCategory}
+                    onChange={(e) => setUsageCategory(e.target.value as any)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none bg-white transition-all"
+                  >
+                    <option value="high">Muito usado (Alta)</option>
+                    <option value="medium">Usado às vezes (Média)</option>
+                    <option value="low">Pouco usado (Baixa)</option>
+                  </select>
                 </div>
               </div>
 
@@ -483,8 +506,21 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded }) => {
                         <span className="text-2xl font-bold text-green-600 font-mono flex-shrink-0">
                           {product.back}
                         </span>
-                        <span className="text-lg text-gray-800 break-words flex-1 min-w-0">
-                          {product.front}
+                        <span className="text-lg text-gray-800 break-words flex-1 min-w-0 flex items-center gap-2 flex-wrap">
+                          <span>{product.front}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${
+                            product.usage_category === 'low'
+                              ? 'bg-slate-100 text-slate-600 border-slate-200'
+                              : product.usage_category === 'medium'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-green-50 text-green-700 border-green-200'
+                          }`}>
+                            {product.usage_category === 'low'
+                              ? 'Pouco usado'
+                              : product.usage_category === 'medium'
+                                ? 'Usado às vezes'
+                                : 'Muito usado'}
+                          </span>
                         </span>
                         <svg 
                           className={`w-5 h-5 text-gray-400 transition-transform flex-shrink-0 ${expandedProductId === product.id ? 'rotate-180' : ''}`}

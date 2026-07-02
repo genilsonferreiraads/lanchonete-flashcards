@@ -10,7 +10,7 @@ export async function fetchProductsFromSupabase(): Promise<FlashcardData[]> {
   try {
     const { data, error } = await supabase
       .from('flashcard_products')
-      .select('id, code, name')
+      .select('id, code, name, usage_category, product_type')
       .order('code', { ascending: true });
 
     if (error) {
@@ -27,6 +27,8 @@ export async function fetchProductsFromSupabase(): Promise<FlashcardData[]> {
       id: product.id,
       back: product.code,
       front: product.name,
+      usage_category: product.usage_category,
+      product_type: product.product_type,
     }));
   } catch (error) {
     console.error('Error fetching products from Supabase:', error);

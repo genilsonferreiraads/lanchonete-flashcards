@@ -6,6 +6,7 @@ interface FlashcardProps {
   backContent: string;
   isFlipped: boolean;
   onFlip: () => void;
+  usageCategory?: 'high' | 'medium' | 'low';
 }
 
 // Typing animation component

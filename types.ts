@@ -3,6 +3,8 @@ export interface FlashcardData {
   id: number;
   front: string;
   back: string;
+  usage_category?: 'high' | 'medium' | 'low';
+  product_type?: 'refeição' | 'lanches' | 'bebidas' | 'outros';
 }
 
 export interface CardStats {

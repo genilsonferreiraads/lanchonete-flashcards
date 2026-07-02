@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS flashcard_products (
   id INTEGER PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
+  usage_category TEXT DEFAULT 'high' CHECK (usage_category IN ('high', 'medium', 'low')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

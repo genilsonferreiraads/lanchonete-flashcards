@@ -1,4 +1,4 @@
-import type { CardStats, SpacedRepetitionState } from './types';
+import type { CardStats, SpacedRepetitionState, FlashcardData } from './types';
 
 const STORAGE_KEY = 'spaced_repetition_state';
 const INITIAL_EASE_FACTOR = 2.5;
@@ -101,8 +101,17 @@ export class SpacedRepetitionService {
     return { ...this.state };
   }
 
-  sortCardsByPriority(cardIds: number[]): number[] {
+  sortCardsByPriority(cardIds: number[], cardsList?: FlashcardData[]): number[] {
     const now = Date.now();
+    
+    const categoryMap = new Map<number, string>();
+    if (cardsList) {
+      cardsList.forEach(c => {
+        categoryMap.set(c.id, c.usage_category || 'high');
+      });
+    }
+
+    const categoryWeight = { high: 1, medium: 2, low: 3 };
 
     return [...cardIds].sort((a, b) => {
       // Initialize cards if they don't exist
@@ -119,12 +128,24 @@ export class SpacedRepetitionService {
       if (isDueA && !isDueB) return -1;
       if (!isDueA && isDueB) return 1;
 
-      // Priority 2: Cards with lower easeFactor (more difficult)
+      // Priority 2: Usage category priority (high > medium > low)
+      if (cardsList) {
+        const catA = categoryMap.get(a) || 'high';
+        const catB = categoryMap.get(b) || 'high';
+        const weightA = categoryWeight[catA as keyof typeof categoryWeight] || 1;
+        const weightB = categoryWeight[catB as keyof typeof categoryWeight] || 1;
+        
+        if (weightA !== weightB) {
+          return weightA - weightB;
+        }
+      }
+
+      // Priority 3: Cards with lower easeFactor (more difficult)
       if (statsA.easeFactor !== statsB.easeFactor) {
         return statsA.easeFactor - statsB.easeFactor;
       }
 
-      // Priority 3: Less reviewed cards
+      // Priority 4: Less reviewed cards
       return statsA.repetitions - statsB.repetitions;
     });
   }
