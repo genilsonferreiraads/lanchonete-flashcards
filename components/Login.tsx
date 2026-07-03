@@ -193,11 +193,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
   };
 
   return (
-    <div className={`fixed inset-0 bg-emerald-50 z-50 overflow-y-auto transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-      <div className="relative min-h-[100dvh] bg-emerald-50 flex flex-col items-center justify-center p-4">
+    <div className={`fixed inset-0 bg-emerald-50 z-50 overflow-y-auto pt-[env(safe-area-inset-top)] transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className="relative min-h-[calc(100dvh-env(safe-area-inset-top))] bg-emerald-50 flex flex-col items-center justify-center p-4">
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 w-11 h-11 flex items-center justify-center rounded-2xl hover:bg-emerald-50 transition-colors text-slate-500 bg-white shadow-sm border border-emerald-100 z-10"
+          className="absolute right-4 top-4 w-11 h-11 flex items-center justify-center rounded-2xl hover:bg-emerald-50 transition-colors text-slate-500 bg-white shadow-sm border border-emerald-100 z-10"
           title="Fechar"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

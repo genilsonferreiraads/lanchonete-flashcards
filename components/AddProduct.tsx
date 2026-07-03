@@ -110,7 +110,7 @@ const SheetShell = ({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-emerald-950/25 px-3 pb-3 pt-10 backdrop-blur-sm animate-fade-in sm:items-center sm:p-6" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-emerald-950/25 px-3 pb-3 pt-[calc(env(safe-area-inset-top)+2.5rem)] backdrop-blur-sm animate-fade-in sm:items-center sm:p-6" onMouseDown={onClose}>
       <section
         className="w-full max-w-lg overflow-hidden rounded-[2rem] border border-white/70 bg-white shadow-2xl shadow-slate-950/20 animate-slide-up sm:rounded-3xl"
         onMouseDown={(event) => event.stopPropagation()}
@@ -186,7 +186,7 @@ const ProductListItem = ({ product, onSelect }: { product: Product; onSelect: (p
   <button
     type="button"
     onClick={() => onSelect(product)}
-    className="group flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm shadow-slate-200/50 transition hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md active:scale-[0.99]"
+    className="group flex w-full touch-pan-y items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm shadow-slate-200/50 transition-colors hover:border-emerald-200"
   >
     <div className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-lg font-black tabular-nums text-emerald-800">
       {product.back}
@@ -368,6 +368,16 @@ const CreateProductSheet = ({
     window.setTimeout(() => codeRef.current?.focus(), 180);
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const validate = () => {
@@ -391,43 +401,61 @@ const CreateProductSheet = ({
   };
 
   return (
-    <SheetShell
-      title="Adicionar produto"
-      eyebrow="Novo cadastro"
-      onClose={onClose}
-      footer={
-        <div className="grid grid-cols-2 gap-3">
-          <button type="button" onClick={onClose} className="h-12 rounded-2xl bg-slate-100 text-sm font-black text-slate-700 transition hover:bg-slate-200">
+    <div
+      className="fixed inset-0 z-[75] overflow-y-auto overscroll-contain bg-emerald-50 pt-[env(safe-area-inset-top)] text-slate-950 animate-fade-in"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Adicionar produto"
+    >
+      <div className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-2xl flex-col px-4 sm:px-6">
+        <header className="flex justify-end py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+            aria-label="Fechar"
+          >
+            <Icon name="x" className="h-6 w-6" />
+          </button>
+        </header>
+
+        <main className="flex-1 pb-4">
+          <form id="create-product-form" onSubmit={handleSubmit} className="space-y-4">
+            <section className="rounded-[1.75rem] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/70 sm:p-5">
+              <div className="mb-5 border-b border-slate-100 pb-4">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600">Novo cadastro</p>
+                <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Adicionar produto</h2>
+              </div>
+              {error && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
+              <ProductForm
+                code={code}
+                name={name}
+                usageCategory={usageCategory}
+                productType={productType}
+                fieldErrors={fieldErrors}
+                autoFocusRef={codeRef}
+                onCodeChange={setCode}
+                onNameChange={(value) => {
+                  setName(value);
+                  setProductType(inferProductTypeFromProduct({ front: value, back: code, product_type: undefined }));
+                }}
+                onCategoryChange={setUsageCategory}
+                onProductTypeChange={setProductType}
+              />
+            </section>
+          </form>
+        </main>
+
+        <footer className="-mx-4 grid grid-cols-2 gap-3 border-t border-emerald-100 bg-emerald-50 px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:-mx-6 sm:px-6">
+          <button type="button" onClick={onClose} className="min-h-[52px] rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50">
             Cancelar
           </button>
-          <button type="submit" form="create-product-form" disabled={loading} className="h-12 rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+          <button type="submit" form="create-product-form" disabled={loading} className="min-h-[52px] rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
             {loading ? 'Adicionando...' : 'Adicionar'}
           </button>
-        </div>
-      }
-    >
-      <form id="create-product-form" onSubmit={handleSubmit} className="space-y-5">
-        <p className="text-sm font-semibold leading-relaxed text-slate-500">
-          Crie um produto novo com um codigo unico para os flashcards.
-        </p>
-        {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
-        <ProductForm
-          code={code}
-          name={name}
-          usageCategory={usageCategory}
-          productType={productType}
-          fieldErrors={fieldErrors}
-          autoFocusRef={codeRef}
-          onCodeChange={setCode}
-        onNameChange={(value) => {
-          setName(value);
-          setProductType(inferProductTypeFromProduct({ front: value, back: code, product_type: undefined }));
-        }}
-          onCategoryChange={setUsageCategory}
-          onProductTypeChange={setProductType}
-        />
-      </form>
-    </SheetShell>
+        </footer>
+      </div>
+    </div>
   );
 };
 
@@ -893,9 +921,9 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded, initia
   const highCount = products.filter((product) => getUsageCategory(product) === 'high').length;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-emerald-50 text-slate-950">
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-5xl flex-col bg-emerald-50 px-4 pb-28 pt-0 sm:px-6 sm:pb-10 lg:px-8">
-        <header className="sticky top-0 z-20 -mx-4 border-b border-emerald-100 bg-white px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+    <div className="fixed inset-0 z-50 touch-pan-y overflow-y-auto overscroll-contain bg-emerald-50 pt-[env(safe-area-inset-top)] text-slate-950">
+      <div className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-5xl flex-col bg-emerald-50 px-4 pb-28 pt-0 sm:px-6 sm:pb-10 lg:px-8">
+        <header className="-mx-4 border-b border-emerald-100 bg-white px-4 py-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-[0.16em] text-emerald-600">

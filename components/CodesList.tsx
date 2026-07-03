@@ -70,9 +70,9 @@ const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
   }, [products, filterCategory, searchQuery]);
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-emerald-50 text-slate-950">
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-3xl flex-col bg-emerald-50 px-4 pb-8 pt-0 sm:px-6">
-        <header className="sticky top-0 z-20 -mx-4 border-b border-emerald-100 bg-emerald-50 px-4 pb-4 pt-2 sm:-mx-6 sm:px-6">
+    <div className="fixed inset-0 z-50 touch-pan-y overflow-y-auto overscroll-contain bg-emerald-50 pt-[env(safe-area-inset-top)] text-slate-950">
+      <div className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-3xl flex-col bg-emerald-50 px-4 pb-8 pt-0 sm:px-6">
+        <header className="-mx-4 border-b border-emerald-100 bg-emerald-50 px-4 pb-4 pt-2 sm:-mx-6 sm:px-6">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600">Códigos</p>
@@ -149,7 +149,7 @@ const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
               filteredCards.map((card) => (
                 <article
                   key={card.id}
-                  className="flex items-center gap-3 rounded-3xl border border-emerald-100 bg-white p-3 shadow-sm transition hover:border-emerald-200 hover:shadow-md"
+                  className="flex touch-pan-y items-center gap-3 rounded-3xl border border-emerald-100 bg-white p-3 shadow-sm transition-colors hover:border-emerald-200"
                 >
                   <div className="flex h-14 w-16 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 text-xl font-black tabular-nums text-emerald-800">
                     {card.back}

@@ -2,11 +2,11 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { CARDS } from './constants';
 import type { FlashcardData } from './types';
-import Flashcard from './components/Flashcard';
 
 import CodesList from './components/CodesList';
 import Login from './components/Login';
 import AddProduct from './components/AddProduct';
+import FlashcardExercise, { type AnswerResult, type ExerciseState } from './components/FlashcardExercise';
 import { spacedRepetitionService } from './spacedRepetition';
 import { fetchProductsFromSupabase, supabase } from './supabase';
 import { compareProductsByLearningRank } from './productCategories';
@@ -18,8 +18,11 @@ export default function App() {
   const [cards, setCards] = useState<FlashcardData[]>(() => [...CARDS].sort(compareProductsByLearningRank));
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFlipped, setIsFlipped] = useState(false);
   const [reviewQueue, setReviewQueue] = useState<number[]>([]);
+  const [pendingQueue, setPendingQueue] = useState<number[] | null>(null);
+  const [exerciseState, setExerciseState] = useState<ExerciseState>('answering');
+  const [typedCode, setTypedCode] = useState('');
+  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
   const [correctAnswers, setCorrectAnswers] = useState<Set<number>>(() => {
     try {
       const saved = localStorage.getItem('correctAnswers');
@@ -56,18 +59,15 @@ export default function App() {
   const [showResetMenu, setShowResetMenu] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isOpening, setIsOpening] = useState(false);
-  const [errorPopup, setErrorPopup] = useState<{ productName: string; code: string; message: string; title: string } | null>(null);
-  const [canCloseErrorPopup, setCanCloseErrorPopup] = useState(false);
-  const [showContinueButton, setShowContinueButton] = useState(false);
 
   const [showCodesList, setShowCodesList] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const answerLockRef = useRef(false);
   
   // Refs para armazenar os timeouts do popup de erro
-  const errorPopupTimeoutsRef = useRef<{ showButton?: NodeJS.Timeout; autoClose?: NodeJS.Timeout }>({});
 
   // Educational messages variations
   const errorMessages = [
@@ -189,16 +189,6 @@ export default function App() {
   }, []);
 
   // Limpar timeouts quando o componente desmontar
-  useEffect(() => {
-    return () => {
-      if (errorPopupTimeoutsRef.current.showButton) {
-        clearTimeout(errorPopupTimeoutsRef.current.showButton);
-      }
-      if (errorPopupTimeoutsRef.current.autoClose) {
-        clearTimeout(errorPopupTimeoutsRef.current.autoClose);
-      }
-    };
-  }, []);
 
 
 
@@ -342,61 +332,30 @@ export default function App() {
     }
     
     setCurrentIndex(0);
+    setPendingQueue(null);
+    setTypedCode('');
+    setAnswerResult(null);
+    answerLockRef.current = false;
+    setExerciseState(sorted.length > 0 ? 'answering' : 'completed');
   }, [activeCards, cards]);
 
-  const handleFlip = useCallback(() => {
-    setIsFlipped(prev => !prev);
-  }, []);
-
-  const handleCorrectAnswer = useCallback(() => {
-    if (reviewQueue.length === 0) return;
-    
-    const cardId = reviewQueue[currentIndex];
+  const registerCorrectAnswer = useCallback((cardId: number) => {
     spacedRepetitionService.recordCorrectAnswer(cardId);
-    
-    // Mark this card as correctly answered
+
     const newCorrectAnswers = new Set(correctAnswers);
     newCorrectAnswers.add(cardId);
     setCorrectAnswers(newCorrectAnswers);
-    
-    // Save to localStorage
+
     localStorage.setItem('correctAnswers', JSON.stringify([...newCorrectAnswers]));
     localStorage.setItem('lastSessionDate', new Date().toDateString());
 
-    // Remove from queue and advance
-    const newQueue = reviewQueue.filter((_, idx) => idx !== currentIndex);
-    
-    if (newQueue.length === 0) {
-      // All cards answered correctly - finished!
-      setReviewQueue([]);
-    } else {
-      // Continue with remaining cards
-      setReviewQueue(newQueue);
-      setCurrentIndex(0);
-    }
+    return reviewQueue.filter((_, idx) => idx !== currentIndex);
+  }, [correctAnswers, currentIndex, reviewQueue]);
 
-    setIsFlipped(false);
-  }, [currentIndex, reviewQueue, correctAnswers]);
-
-  const closeErrorPopup = useCallback((savedCardId?: number, savedIndex?: number, savedQueue?: number[]) => {
-    // Limpar todos os timeouts
-    if (errorPopupTimeoutsRef.current.showButton) {
-      clearTimeout(errorPopupTimeoutsRef.current.showButton);
-      errorPopupTimeoutsRef.current.showButton = undefined;
-    }
-    if (errorPopupTimeoutsRef.current.autoClose) {
-      clearTimeout(errorPopupTimeoutsRef.current.autoClose);
-      errorPopupTimeoutsRef.current.autoClose = undefined;
-    }
-
-    const cardId = savedCardId ?? reviewQueue[currentIndex];
-    const index = savedIndex ?? currentIndex;
-    const queue = savedQueue ?? reviewQueue;
-    
-    if (!cardId) return;
-    
+  const registerIncorrectAnswer = useCallback((cardId: number) => {
     spacedRepetitionService.recordIncorrectAnswer(cardId);
     const stats = spacedRepetitionService.getCardStats(cardId);
+
     setIncorrectAnswers((current) => {
       const next = current + 1;
       localStorage.setItem('incorrectAnswers', JSON.stringify(next));
@@ -404,57 +363,136 @@ export default function App() {
       return next;
     });
 
-    // Return missed cards by product count, not by time. First miss comes back
-    // after 10 products; repeated misses come back sooner for reinforcement.
-    const newQueue = [...queue];
-    const [movedCard] = newQueue.splice(index, 1);
-
+    const newQueue = [...reviewQueue];
+    const [movedCard] = newQueue.splice(currentIndex, 1);
     const reviewGap = (stats?.incorrectStreak || 0) > 1 ? REPEATED_MISS_REVIEW_GAP : FIRST_MISS_REVIEW_GAP;
-    const insertPosition = Math.min(index + reviewGap, newQueue.length);
+    const insertPosition = Math.min(currentIndex + reviewGap, newQueue.length);
     newQueue.splice(insertPosition, 0, movedCard);
 
-    setReviewQueue(newQueue);
-    setCurrentIndex(0);
-    setErrorPopup(null);
-    setCanCloseErrorPopup(false);
-    setShowContinueButton(false);
-    setIsFlipped(false);
+    return newQueue;
   }, [currentIndex, reviewQueue]);
 
-  const handleIncorrectAnswer = useCallback(() => {
-    if (reviewQueue.length === 0) return;
-    
-    // Limpar timeouts anteriores se existirem
-    if (errorPopupTimeoutsRef.current.showButton) {
-      clearTimeout(errorPopupTimeoutsRef.current.showButton);
-      errorPopupTimeoutsRef.current.showButton = undefined;
-    }
-    if (errorPopupTimeoutsRef.current.autoClose) {
-      clearTimeout(errorPopupTimeoutsRef.current.autoClose);
-      errorPopupTimeoutsRef.current.autoClose = undefined;
-    }
-    
+  const finishAnswer = useCallback((nextState: Exclude<ExerciseState, 'answering' | 'completed'>, submittedCode: string) => {
+    if (exerciseState !== 'answering' || answerLockRef.current) return;
+    answerLockRef.current = true;
     const cardId = reviewQueue[currentIndex];
     const currentCardData = cards.find(c => c.id === cardId);
-    
-    if (currentCardData) {
-      // Show educational popup with random message
-      const randomMessage = errorMessages[Math.floor(Math.random() * errorMessages.length)];
-      setCanCloseErrorPopup(true);
-      setShowContinueButton(true);
-      setErrorPopup({
-        productName: currentCardData.front,
-        code: currentCardData.back,
-        title: randomMessage.title,
-        message: randomMessage.message
-          .replace('{product}', currentCardData.front)
-          .replace('{code}', currentCardData.back)
-      });
-      
+    if (!cardId || !currentCardData) return;
+
+    const correctCode = String(currentCardData.back ?? '');
+    const isCorrect = nextState === 'correct';
+    const nextQueue = isCorrect ? registerCorrectAnswer(cardId) : registerIncorrectAnswer(cardId);
+
+    setAnswerResult({
+      productName: currentCardData.front,
+      typedCode: submittedCode,
+      correctCode,
+    });
+    setPendingQueue(nextQueue);
+    setExerciseState(nextState);
+  }, [cards, currentIndex, exerciseState, registerCorrectAnswer, registerIncorrectAnswer, reviewQueue]);
+
+  const handleDigit = useCallback((digit: string) => {
+    if (exerciseState !== 'answering') return;
+    setTypedCode((current) => {
+      const cardId = reviewQueue[currentIndex];
+      const currentCardData = cards.find(c => c.id === cardId);
+      const maxLength = currentCardData ? Math.max(String(currentCardData.back ?? '').length, 1) : 1;
+      return current.length >= maxLength ? current : `${current}${digit}`;
+    });
+  }, [cards, currentIndex, exerciseState, reviewQueue]);
+
+  const handleDeleteDigit = useCallback(() => {
+    if (exerciseState !== 'answering') return;
+    setTypedCode((current) => current.slice(0, -1));
+  }, [exerciseState]);
+
+  const handleConfirmCode = useCallback(() => {
+    if (exerciseState !== 'answering' || !typedCode) return;
+    const cardId = reviewQueue[currentIndex];
+    const currentCardData = cards.find(c => c.id === cardId);
+    if (!currentCardData) return;
+
+    const correctCode = String(currentCardData.back ?? '');
+    finishAnswer(typedCode === correctCode ? 'correct' : 'incorrect', typedCode);
+  }, [cards, currentIndex, exerciseState, finishAnswer, reviewQueue, typedCode]);
+
+  const handleUnknownAnswer = useCallback(() => {
+    if (exerciseState !== 'answering') return;
+    finishAnswer('unknown', typedCode);
+  }, [exerciseState, finishAnswer, typedCode]);
+
+  useEffect(() => {
+    if (showLogin || showAddProduct || showCodesList) return;
+    if (exerciseState !== 'answering') return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTextInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable;
+
+      if (isTextInput) return;
+
+      if (/^\d$/.test(event.key)) {
+        event.preventDefault();
+        handleDigit(event.key);
+      } else if (event.key === 'Backspace') {
+        event.preventDefault();
+        handleDeleteDigit();
+      } else if (event.key === 'Enter' && typedCode) {
+        event.preventDefault();
+        handleConfirmCode();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [exerciseState, handleConfirmCode, handleDeleteDigit, handleDigit, showAddProduct, showCodesList, showLogin, typedCode]);
+
+  const resetAnswerState = useCallback(() => {
+    setTypedCode('');
+    setAnswerResult(null);
+    setPendingQueue(null);
+    answerLockRef.current = false;
+    setExerciseState('answering');
+    setCurrentIndex(0);
+  }, []);
+
+  const handleNextProduct = useCallback(() => {
+    if (!pendingQueue) return;
+
+    if (pendingQueue.length === 0) {
+      setReviewQueue([]);
+      setPendingQueue(null);
+      setTypedCode('');
+      setAnswerResult(null);
+      setExerciseState('completed');
+      setCurrentIndex(0);
+      return;
     }
-    
-    setIsFlipped(false);
-  }, [currentIndex, reviewQueue, cards, closeErrorPopup]);
+
+    setReviewQueue(pendingQueue);
+    resetAnswerState();
+  }, [pendingQueue, resetAnswerState]);
+
+  const restartExercise = useCallback(() => {
+    const activeCardIds = activeCards.map(card => card.id);
+    const sorted = spacedRepetitionService.sortCardsByPriority(activeCardIds, cards);
+    setCorrectAnswers(new Set());
+    setIncorrectAnswers(0);
+    localStorage.setItem('correctAnswers', JSON.stringify([]));
+    localStorage.setItem('incorrectAnswers', JSON.stringify(0));
+    localStorage.setItem('lastSessionDate', new Date().toDateString());
+    setReviewQueue(sorted);
+    setCurrentIndex(0);
+    setPendingQueue(null);
+    setTypedCode('');
+    setAnswerResult(null);
+    answerLockRef.current = false;
+    setExerciseState(sorted.length > 0 ? 'answering' : 'completed');
+  }, [activeCards, cards]);
 
   const handleReset = useCallback(() => {
     setIsClosing(false);
@@ -553,8 +591,14 @@ export default function App() {
   const hasCards = reviewQueue.length > 0;
   const totalCards = cards.length;
   const totalCardsToLearn = activeCards.length;
-  const progressPercentage = totalCardsToLearn > 0 ? (correctAnswers.size / totalCardsToLearn) * 100 : 0;
-  const currentProgressCode = totalCardsToLearn > 0 ? Math.min(correctAnswers.size + (hasCards ? 1 : 0), totalCardsToLearn) : 0;
+  const answeredCount = Math.min(correctAnswers.size + incorrectAnswers, totalCardsToLearn);
+  const progressPercentage = totalCardsToLearn > 0 ? (answeredCount / totalCardsToLearn) * 100 : 0;
+  const currentProgressCode = totalCardsToLearn > 0 ? Math.min(answeredCount + (hasCards ? 1 : 0), totalCardsToLearn) : 0;
+  const maxCodeLength = useMemo(() => Math.max(...cards.map(card => String(card.back ?? '').length), 1), [cards]);
+  const currentCodeLength = currentCard ? Math.max(String(currentCard.back ?? '').length, 1) : maxCodeLength;
+  const isLastCard = (pendingQueue?.length ?? reviewQueue.length) === 0;
+  const errorPopup: any = null;
+  const closeErrorPopup = () => {};
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
@@ -634,7 +678,7 @@ export default function App() {
       <div className="layout-container flex h-full grow flex-col">
         <div className="flex flex-1 justify-center p-4 sm:p-6 md:p-8">
           <div className="layout-content-container flex flex-col w-full max-w-md flex-1">
-            <header className="relative w-full py-3 px-4 flex justify-between items-center border border-emerald-100 bg-white sticky top-0 z-40 rounded-2xl shadow-sm mb-2">
+            <header className="relative w-full py-3 px-4 flex justify-between items-center gap-3 border border-emerald-100 bg-white sticky top-[env(safe-area-inset-top)] z-40 rounded-2xl shadow-sm shadow-slate-900/8 mb-1">
               {showUserMenu && (
                 <button
                   type="button"
@@ -643,24 +687,102 @@ export default function App() {
                   onClick={() => setShowUserMenu(false)}
                 />
               )}
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-md shadow-emerald-500/20 text-white font-extrabold text-base">L</div>
-                <div className="min-w-0">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="relative z-40 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowUserMenu((value) => !value)}
+                    className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                    title="Abrir menu"
+                    aria-expanded={showUserMenu}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                  </button>
+                  {showUserMenu && (
+                    <div className="absolute left-0 top-14 z-50 w-64 overflow-hidden rounded-2xl border border-emerald-100 bg-white p-2 shadow-2xl shadow-slate-900/12">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          handleAddProductClick();
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                        Gerenciar produtos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          handleOpenCodesList();
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg>
+                        Página de códigos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          handleReset();
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-rose-50 hover:text-rose-600"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        Resetar progresso
+                      </button>
+                      {isAuthenticated && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            handleLogout();
+                          }}
+                          className="mt-1 flex w-full items-center gap-3 rounded-xl border-t border-slate-100 px-3 py-3 text-left text-sm font-bold text-rose-600 transition hover:bg-rose-50"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+                          Sair
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
                   <h1 className="truncate text-base font-black tracking-tight text-slate-900">Restaurante Limarques</h1>
-                  <p className="text-xs font-bold text-emerald-600">Flashcards de códigos</p>
+                  <div className="mt-1.5">
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                      <p className="truncate text-[11px] font-black text-slate-500">Código {currentProgressCode} de {totalCardsToLearn}</p>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 ring-1 ring-emerald-100">
+                          {correctAnswers.size} acertos
+                        </span>
+                        <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-600 ring-1 ring-rose-100">
+                          {incorrectAnswers} erros
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-emerald-50">
+                      <div
+                        className="h-1.5 rounded-full bg-emerald-500 transition-all duration-300 ease-out"
+                        style={{ width: `${progressPercentage}%` }}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="relative z-40 flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setShowUserMenu((value) => !value)}
-                  className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                  className="hidden"
                   title="Abrir menu"
                   aria-expanded={showUserMenu}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
                 </button>
-                {showUserMenu && (
+                {false && showUserMenu && (
                   <div className="absolute right-0 top-14 z-50 w-64 overflow-hidden rounded-2xl border border-emerald-100 bg-white p-2 shadow-2xl shadow-slate-900/12">
                     <button
                       type="button"
@@ -745,7 +867,7 @@ export default function App() {
               </div>
             </header>
             
-            <main className="flex-grow flex flex-col justify-start gap-2.5 sm:gap-3">
+            <main className="flex-grow flex flex-col justify-start gap-1 pt-1 sm:gap-1.5">
               {/* Filtros de Categoria */}
               <div className="hidden">
                 <button
@@ -800,9 +922,9 @@ export default function App() {
                 </button>
               </div>
 
-              {hasCards ? (
+              {hasCards || exerciseState === 'completed' ? (
                 <>
-                  <div className="mx-4 rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm">
+                  <div className="hidden">
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-black text-slate-900">Progresso</p>
@@ -825,41 +947,28 @@ export default function App() {
                     </div>
                   </div>
                   
-                  <div className="px-4 py-0 relative flex flex-none items-center justify-center min-h-[300px] sm:min-h-[330px]">
+                  <div className="px-4 pt-2 pb-0 relative flex flex-none items-start justify-center scroll-mt-28">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-100/30 rounded-full blur-3xl -z-10"></div>
-                    {currentCard && (
-                      <div className="w-full max-w-sm">
-                        <Flashcard 
-                          frontContent={currentCard.front}
-                          backContent={currentCard.back}
-                          isFlipped={isFlipped}
-                          onFlip={handleFlip}
-                        />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className={`flex gap-3 px-4 transition-all duration-300 overflow-hidden ${
-                    isFlipped ? 'max-h-20 opacity-100 -mt-1' : 'max-h-0 opacity-0 mt-0 pointer-events-none'
-                  }`}>
-                    <button 
-                      onClick={handleIncorrectAnswer}
-                      tabIndex={isFlipped ? 0 : -1}
-                      className="flex-1 flex gap-2 items-center justify-center rounded-2xl h-14 bg-white text-rose-500 text-base font-bold border border-rose-200 hover:bg-rose-50 active:scale-95 transition-all duration-200 shadow-sm"
-                      aria-hidden={!isFlipped}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                      <span>Errei</span>
-                    </button>
-                    <button 
-                      onClick={handleCorrectAnswer}
-                      tabIndex={isFlipped ? 0 : -1}
-                      className="flex-1 flex gap-2 items-center justify-center rounded-2xl h-14 bg-emerald-500 text-white text-base font-bold hover:bg-emerald-600 active:scale-95 transition-all duration-200 shadow-md shadow-emerald-500/20"
-                      aria-hidden={!isFlipped}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      <span>Acertei</span>
-                    </button>
+                    <div className="w-full max-w-sm">
+                      <FlashcardExercise
+                        card={currentCard}
+                        state={exerciseState}
+                        typedCode={typedCode}
+                        result={answerResult}
+                        maxCodeLength={currentCodeLength}
+                        isLastCard={isLastCard}
+                        studiedCount={correctAnswers.size + incorrectAnswers}
+                        correctCount={correctAnswers.size}
+                        incorrectCount={incorrectAnswers}
+                        onDigit={handleDigit}
+                        onDelete={handleDeleteDigit}
+                        onConfirm={handleConfirmCode}
+                        onUnknown={handleUnknownAnswer}
+                        onNext={handleNextProduct}
+                        onStudyAgain={restartExercise}
+                        onBackHome={restartExercise}
+                      />
+                    </div>
                   </div>
                 </>
               ) : (
@@ -877,3 +986,4 @@ export default function App() {
     </div>
   );
 }
+
