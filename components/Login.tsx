@@ -193,11 +193,11 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
   };
 
   return (
-    <div className={`fixed inset-0 bg-white z-50 overflow-y-auto transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-      <div className="relative min-h-screen flex flex-col items-center justify-center p-6">
+    <div className={`fixed inset-0 bg-emerald-50 z-50 overflow-y-auto transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className="relative min-h-[100dvh] bg-emerald-50 flex flex-col items-center justify-center p-4">
         <button
           onClick={handleClose}
-          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition-colors text-gray-600 bg-white shadow-sm z-10"
+          className="absolute top-4 right-4 w-11 h-11 flex items-center justify-center rounded-2xl hover:bg-emerald-50 transition-colors text-slate-500 bg-white shadow-sm border border-emerald-100 z-10"
           title="Fechar"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -206,28 +206,29 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
           </svg>
         </button>
         
-        <div className={`max-w-md w-full space-y-6 transition-all duration-300 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        <div className={`max-w-md w-full rounded-[2rem] border border-emerald-100 bg-white p-6 shadow-2xl shadow-emerald-900/10 transition-all duration-300 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Lanchonete Limarques</h1>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-green-50 border border-green-200 rounded-full mb-4">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-600 text-2xl font-black text-white shadow-lg shadow-emerald-600/20">L</div>
+            <h1 className="text-3xl font-black tracking-tight text-slate-950 mb-2">Restaurante Limarques</h1>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full mb-4">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                 <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
               </svg>
-              <span className="text-sm font-semibold text-green-700">Acesso Restrito</span>
+              <span className="text-sm font-bold text-emerald-700">Acesso Restrito</span>
             </div>
-            <p className="text-base text-gray-600">Entre para gerenciar produtos</p>
+            <p className="text-sm font-semibold text-slate-500">Entre para gerenciar produtos e códigos.</p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="mt-7 space-y-5">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-2xl text-sm font-bold">
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-black text-slate-700 mb-2">
                 Email
               </label>
               <div className="relative">
@@ -243,14 +244,14 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full pl-10 pr-4 py-3 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
+                  className="w-full h-14 pl-10 pr-4 text-base font-bold border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 outline-none transition-all placeholder:text-slate-300"
                   placeholder="seu@email.com"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-black text-slate-700 mb-2">
                 Senha
               </label>
               <div className="relative">
@@ -265,7 +266,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full pl-10 pr-12 py-3 text-lg border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
+                  className="w-full h-14 pl-10 pr-12 text-base font-bold border border-slate-200 rounded-2xl focus:ring-4 focus:ring-emerald-100 focus:border-emerald-400 outline-none transition-all placeholder:text-slate-300"
                   placeholder="••••••••"
                 />
                 <button
@@ -293,7 +294,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
             <button
               type="submit"
               disabled={loading || (attempts.lockoutUntil !== null && Date.now() < attempts.lockoutUntil)}
-              className="w-full bg-green-600 text-white rounded-lg px-6 py-4 text-lg font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              className="w-full bg-emerald-600 text-white rounded-2xl px-6 py-4 text-base font-black hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-600/20"
             >
               {loading ? 'Entrando...' : attempts.lockoutUntil && Date.now() < attempts.lockoutUntil ? `Bloqueado (${formatTimeRemaining(timeRemaining)})` : 'Entrar'}
             </button>
@@ -311,4 +312,3 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onClose }) => {
 };
 
 export default Login;
-

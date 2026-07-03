@@ -1,4 +1,5 @@
 import type { CardStats, SpacedRepetitionState, FlashcardData } from './types';
+import { compareProductsByLearningRank } from './productCategories';
 
 const STORAGE_KEY = 'spaced_repetition_state';
 const INITIAL_EASE_FACTOR = 2.5;
@@ -41,6 +42,7 @@ export class SpacedRepetitionService {
         nextReview: Date.now(),
         totalAttempts: 0,
         correctAttempts: 0,
+        incorrectStreak: 0,
         lastReviewDate: null,
       };
       this.saveToStorage();
@@ -53,6 +55,7 @@ export class SpacedRepetitionService {
 
     stats.totalAttempts++;
     stats.correctAttempts++;
+    stats.incorrectStreak = 0;
     stats.lastReviewDate = Date.now();
 
     // SM-2 Algorithm
@@ -81,13 +84,15 @@ export class SpacedRepetitionService {
     const stats = this.state[cardId];
 
     stats.totalAttempts++;
+    stats.incorrectStreak = (stats.incorrectStreak || 0) + 1;
     stats.lastReviewDate = Date.now();
     stats.repetitions = 0;
     stats.interval = 0;
     stats.easeFactor = Math.max(MIN_EASE_FACTOR, stats.easeFactor - 0.2);
 
-    // Schedule review for 5 minutes later
-    stats.nextReview = Date.now() + 5 * 60 * 1000;
+    // Keep the card available in the current session. The app queue decides
+    // whether it returns after 10 products or sooner after repeated misses.
+    stats.nextReview = Date.now();
 
     this.saveToStorage();
   }
@@ -104,14 +109,12 @@ export class SpacedRepetitionService {
   sortCardsByPriority(cardIds: number[], cardsList?: FlashcardData[]): number[] {
     const now = Date.now();
     
-    const categoryMap = new Map<number, string>();
+    const cardMap = new Map<number, FlashcardData>();
     if (cardsList) {
       cardsList.forEach(c => {
-        categoryMap.set(c.id, c.usage_category || 'high');
+        cardMap.set(c.id, c);
       });
     }
-
-    const categoryWeight = { high: 1, medium: 2, low: 3 };
 
     return [...cardIds].sort((a, b) => {
       // Initialize cards if they don't exist
@@ -128,16 +131,11 @@ export class SpacedRepetitionService {
       if (isDueA && !isDueB) return -1;
       if (!isDueA && isDueB) return 1;
 
-      // Priority 2: Usage category priority (high > medium > low)
+      // Priority 2: Learning rank (classification first, then product category)
       if (cardsList) {
-        const catA = categoryMap.get(a) || 'high';
-        const catB = categoryMap.get(b) || 'high';
-        const weightA = categoryWeight[catA as keyof typeof categoryWeight] || 1;
-        const weightB = categoryWeight[catB as keyof typeof categoryWeight] || 1;
-        
-        if (weightA !== weightB) {
-          return weightA - weightB;
-        }
+        const cardA = cardMap.get(a);
+        const cardB = cardMap.get(b);
+        if (cardA && cardB) return compareProductsByLearningRank(cardA, cardB);
       }
 
       // Priority 3: Cards with lower easeFactor (more difficult)

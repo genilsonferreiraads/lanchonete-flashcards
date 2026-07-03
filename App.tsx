@@ -3,20 +3,19 @@ import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { CARDS } from './constants';
 import type { FlashcardData } from './types';
 import Flashcard from './components/Flashcard';
-import ProgressBar from './components/ProgressBar';
 
 import CodesList from './components/CodesList';
 import Login from './components/Login';
 import AddProduct from './components/AddProduct';
 import { spacedRepetitionService } from './spacedRepetition';
 import { fetchProductsFromSupabase, supabase } from './supabase';
+import { compareProductsByLearningRank } from './productCategories';
 
-const shuffleArray = <T,>(array: T[]): T[] => {
-  return [...array].sort(() => Math.random() - 0.5);
-};
+const FIRST_MISS_REVIEW_GAP = 10;
+const REPEATED_MISS_REVIEW_GAP = 5;
 
 export default function App() {
-  const [cards, setCards] = useState<FlashcardData[]>(() => shuffleArray(CARDS));
+  const [cards, setCards] = useState<FlashcardData[]>(() => [...CARDS].sort(compareProductsByLearningRank));
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -37,6 +36,21 @@ export default function App() {
       return new Set();
     }
   });
+  const [incorrectAnswers, setIncorrectAnswers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('incorrectAnswers');
+      const lastDate = localStorage.getItem('lastSessionDate');
+      const today = new Date().toDateString();
+
+      if (lastDate !== today) {
+        return 0;
+      }
+
+      return saved ? Number(JSON.parse(saved)) || 0 : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [forceUpdate, setForceUpdate] = useState(0);
   const [filterCategory, setFilterCategory] = useState<'active' | 'all' | 'high' | 'medium' | 'low'>('active');
   const [showResetMenu, setShowResetMenu] = useState(false);
@@ -49,6 +63,7 @@ export default function App() {
   const [showCodesList, setShowCodesList] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Refs para armazenar os timeouts do popup de erro
@@ -114,6 +129,30 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const themeColor = showAddProduct || showCodesList || showLogin ? '#ecfdf5' : '#f8fafc';
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+
+    if (metaTheme) {
+      metaTheme.setAttribute('content', themeColor);
+    }
+
+    document.documentElement.classList.toggle('app-theme-emerald', themeColor === '#ecfdf5');
+    document.documentElement.classList.toggle('app-theme-surface', themeColor === '#f8fafc');
+    document.documentElement.style.backgroundColor = themeColor;
+    document.body.style.backgroundColor = themeColor;
+
+    return () => {
+      if (metaTheme) {
+        metaTheme.setAttribute('content', '#f8fafc');
+      }
+      document.documentElement.classList.remove('app-theme-emerald');
+      document.documentElement.classList.add('app-theme-surface');
+      document.documentElement.style.backgroundColor = '#f8fafc';
+      document.body.style.backgroundColor = '#f8fafc';
+    };
+  }, [showAddProduct, showCodesList, showLogin]);
+
   // Buscar produtos do Supabase ao carregar
   useEffect(() => {
     const loadProducts = async () => {
@@ -121,7 +160,7 @@ export default function App() {
         const supabaseProducts = await fetchProductsFromSupabase();
         if (supabaseProducts.length > 0) {
           // Usar produtos do Supabase
-          setCards(shuffleArray(supabaseProducts));
+          setCards([...supabaseProducts].sort(compareProductsByLearningRank));
         } else {
           // Fallback para produtos locais se Supabase estiver vazio
           console.log('Using local products as fallback');
@@ -141,7 +180,7 @@ export default function App() {
     try {
       const supabaseProducts = await fetchProductsFromSupabase();
       if (supabaseProducts.length > 0) {
-        setCards(shuffleArray(supabaseProducts));
+        setCards([...supabaseProducts].sort(compareProductsByLearningRank));
         setForceUpdate(prev => prev + 1);
       }
     } catch (error) {
@@ -297,7 +336,9 @@ export default function App() {
     if (lastDate !== today) {
       localStorage.setItem('lastSessionDate', today);
       localStorage.removeItem('correctAnswers');
+      localStorage.removeItem('incorrectAnswers');
       setCorrectAnswers(new Set());
+      setIncorrectAnswers(0);
     }
     
     setCurrentIndex(0);
@@ -355,14 +396,21 @@ export default function App() {
     if (!cardId) return;
     
     spacedRepetitionService.recordIncorrectAnswer(cardId);
+    const stats = spacedRepetitionService.getCardStats(cardId);
+    setIncorrectAnswers((current) => {
+      const next = current + 1;
+      localStorage.setItem('incorrectAnswers', JSON.stringify(next));
+      localStorage.setItem('lastSessionDate', new Date().toDateString());
+      return next;
+    });
 
-    // Move this card ahead based on queue size (like Anki does)
+    // Return missed cards by product count, not by time. First miss comes back
+    // after 10 products; repeated misses come back sooner for reinforcement.
     const newQueue = [...queue];
     const [movedCard] = newQueue.splice(index, 1);
-    
-    // Calculate positions ahead: max(5, half of queue length)
-    const positionsAhead = Math.max(5, Math.floor(newQueue.length / 2));
-    const insertPosition = Math.min(index + positionsAhead, newQueue.length);
+
+    const reviewGap = (stats?.incorrectStreak || 0) > 1 ? REPEATED_MISS_REVIEW_GAP : FIRST_MISS_REVIEW_GAP;
+    const insertPosition = Math.min(index + reviewGap, newQueue.length);
     newQueue.splice(insertPosition, 0, movedCard);
 
     setReviewQueue(newQueue);
@@ -392,8 +440,8 @@ export default function App() {
     if (currentCardData) {
       // Show educational popup with random message
       const randomMessage = errorMessages[Math.floor(Math.random() * errorMessages.length)];
-      setCanCloseErrorPopup(false);
-      setShowContinueButton(false);
+      setCanCloseErrorPopup(true);
+      setShowContinueButton(true);
       setErrorPopup({
         productName: currentCardData.front,
         code: currentCardData.back,
@@ -403,21 +451,6 @@ export default function App() {
           .replace('{code}', currentCardData.back)
       });
       
-      // Save cardId for later use
-      const savedCardId = cardId;
-      const savedIndex = currentIndex;
-      const savedQueue = [...reviewQueue];
-      
-      // Show continue button after 5 seconds
-      errorPopupTimeoutsRef.current.showButton = setTimeout(() => {
-        setShowContinueButton(true);
-        setCanCloseErrorPopup(true);
-      }, 5000);
-      
-      // Auto-close after 10 seconds
-      errorPopupTimeoutsRef.current.autoClose = setTimeout(() => {
-        closeErrorPopup(savedCardId, savedIndex, savedQueue);
-      }, 10000);
     }
     
     setIsFlipped(false);
@@ -434,6 +467,7 @@ export default function App() {
   const confirmReset = useCallback(() => {
     localStorage.removeItem('spaced_repetition_state');
     localStorage.removeItem('correctAnswers');
+    localStorage.removeItem('incorrectAnswers');
 
     window.location.reload();
   }, []);
@@ -519,6 +553,8 @@ export default function App() {
   const hasCards = reviewQueue.length > 0;
   const totalCards = cards.length;
   const totalCardsToLearn = activeCards.length;
+  const progressPercentage = totalCardsToLearn > 0 ? (correctAnswers.size / totalCardsToLearn) * 100 : 0;
+  const currentProgressCode = totalCardsToLearn > 0 ? Math.min(correctAnswers.size + (hasCards ? 1 : 0), totalCardsToLearn) : 0;
 
   return (
     <div className="relative flex h-auto min-h-screen w-full flex-col text-text-light-primary">
@@ -526,7 +562,7 @@ export default function App() {
         <Login onLoginSuccess={handleLoginSuccess} onClose={() => setShowLogin(false)} />
       )}
       {showAddProduct && (
-        <AddProduct onClose={() => setShowAddProduct(false)} onProductAdded={handleProductAdded} />
+        <AddProduct onClose={() => setShowAddProduct(false)} onProductAdded={handleProductAdded} initialProducts={cards} />
       )}
       {showCodesList && (
         <CodesList onClose={handleCloseCodesList} />
@@ -553,18 +589,12 @@ export default function App() {
               <p className="text-sm text-gray-700 leading-relaxed mb-4">
                 {errorPopup.message}
               </p>
-              {!showContinueButton ? (
-                <div className="w-full bg-gray-200 text-gray-500 rounded-lg px-4 py-2 font-medium text-center">
-                  Aguarde 5 segundos...
-                </div>
-              ) : (
-                <button
-                  onClick={() => closeErrorPopup()}
-                  className="w-full bg-green-600 text-white rounded-lg px-4 py-3 font-bold hover:bg-green-700 transition-colors shadow-lg"
-                >
-                  Continuar
-                </button>
-              )}
+              <button
+                onClick={() => closeErrorPopup()}
+                className="w-full bg-green-600 text-white rounded-lg px-4 py-3 font-bold hover:bg-green-700 transition-colors shadow-lg"
+              >
+                Continuar
+              </button>
             </div>
           </div>
         </div>
@@ -604,15 +634,85 @@ export default function App() {
       <div className="layout-container flex h-full grow flex-col">
         <div className="flex flex-1 justify-center p-4 sm:p-6 md:p-8">
           <div className="layout-content-container flex flex-col w-full max-w-md flex-1">
-            <header className="w-full py-4 px-4 flex justify-between items-center border border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-40 rounded-2xl shadow-sm mb-6">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shadow-md shadow-emerald-500/20 text-white font-extrabold text-base">L</div>
-                <h1 className="text-lg font-black tracking-tight text-slate-800">Limarques <span className="text-emerald-500 font-medium text-xs">Flashcards</span></h1>
+            <header className="relative w-full py-3 px-4 flex justify-between items-center border border-emerald-100 bg-white sticky top-0 z-40 rounded-2xl shadow-sm mb-2">
+              {showUserMenu && (
+                <button
+                  type="button"
+                  className="fixed inset-0 z-30 cursor-default"
+                  aria-label="Fechar menu"
+                  onClick={() => setShowUserMenu(false)}
+                />
+              )}
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-md shadow-emerald-500/20 text-white font-extrabold text-base">L</div>
+                <div className="min-w-0">
+                  <h1 className="truncate text-base font-black tracking-tight text-slate-900">Restaurante Limarques</h1>
+                  <p className="text-xs font-bold text-emerald-600">Flashcards de códigos</p>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="relative z-40 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowUserMenu((value) => !value)}
+                  className="flex h-11 w-11 items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                  title="Abrir menu"
+                  aria-expanded={showUserMenu}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>
+                </button>
+                {showUserMenu && (
+                  <div className="absolute right-0 top-14 z-50 w-64 overflow-hidden rounded-2xl border border-emerald-100 bg-white p-2 shadow-2xl shadow-slate-900/12">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        handleAddProductClick();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                      Gerenciar produtos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        handleOpenCodesList();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h8"/></svg>
+                      Página de códigos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        handleReset();
+                      }}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-rose-50 hover:text-rose-600"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                      Resetar progresso
+                    </button>
+                    {isAuthenticated && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          handleLogout();
+                        }}
+                        className="mt-1 flex w-full items-center gap-3 rounded-xl border-t border-slate-100 px-3 py-3 text-left text-sm font-bold text-rose-600 transition hover:bg-rose-50"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+                        Sair
+                      </button>
+                    )}
+                  </div>
+                )}
                 <button 
                   onClick={handleOpenCodesList}
-                  className="p-2 text-xs font-bold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center gap-1"
+                  className="hidden"
                   title="Ver códigos"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
@@ -620,7 +720,7 @@ export default function App() {
                 </button>
                 <button 
                   onClick={handleAddProductClick}
-                  className="p-2 text-xs font-bold text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all flex items-center gap-1"
+                  className="hidden"
                   title={isAuthenticated ? "Gerenciar produtos" : "Entrar como admin"}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
@@ -629,7 +729,7 @@ export default function App() {
                 {isAuthenticated && (
                   <button 
                     onClick={handleLogout}
-                    className="p-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-all"
+                    className="hidden"
                     title="Sair"
                   >
                     Sair
@@ -637,7 +737,7 @@ export default function App() {
                 )}
                 <button 
                   onClick={handleReset}
-                  className="p-2 text-xs text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all ml-0.5"
+                  className="hidden"
                   title="Resetar progresso"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -645,9 +745,9 @@ export default function App() {
               </div>
             </header>
             
-            <main className="flex-grow flex flex-col justify-center gap-6 sm:gap-8">
+            <main className="flex-grow flex flex-col justify-start gap-2.5 sm:gap-3">
               {/* Filtros de Categoria */}
-              <div className="flex gap-1.5 px-4 overflow-x-auto no-scrollbar scroll-smooth pb-1">
+              <div className="hidden">
                 <button
                   onClick={() => setFilterCategory('active')}
                   className={`px-3 py-1.5 text-xs font-bold rounded-xl border transition-all whitespace-nowrap flex items-center gap-1 ${
@@ -702,21 +802,30 @@ export default function App() {
 
               {hasCards ? (
                 <>
-                  {/* Card de Progresso e Fase */}
-                  <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm mx-4 flex flex-col gap-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                        {currentPhaseInfo.name}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-100">
-                        {currentPhaseInfo.learnedCount}/{currentPhaseInfo.totalCount} dominados
-                      </span>
+                  <div className="mx-4 rounded-2xl border border-emerald-100 bg-white p-3 shadow-sm">
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-black text-slate-900">Progresso</p>
+                        <p className="text-xs font-bold text-slate-500">Código {currentProgressCode} de {totalCardsToLearn}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-black text-emerald-700 ring-1 ring-emerald-100">
+                          {correctAnswers.size} acertos
+                        </span>
+                        <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-black text-rose-600 ring-1 ring-rose-100">
+                          {incorrectAnswers} erros
+                        </span>
+                      </div>
                     </div>
-                    <ProgressBar current={correctAnswers.size} total={totalCardsToLearn} />
+                    <div className="h-2 rounded-full bg-emerald-50">
+                      <div
+                        className="h-2 rounded-full bg-emerald-500 transition-all duration-300 ease-out"
+                        style={{ width: `${progressPercentage}%` }}
+                      />
+                    </div>
                   </div>
                   
-                  <div className="px-4 py-2 relative flex-grow flex items-center justify-center min-h-[220px]">
+                  <div className="px-4 py-0 relative flex flex-none items-center justify-center min-h-[300px] sm:min-h-[330px]">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-100/30 rounded-full blur-3xl -z-10"></div>
                     {currentCard && (
                       <div className="w-full max-w-sm">
@@ -731,7 +840,7 @@ export default function App() {
                   </div>
 
                   <div className={`flex gap-3 px-4 transition-all duration-300 overflow-hidden ${
-                    isFlipped ? 'max-h-20 opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0 pointer-events-none'
+                    isFlipped ? 'max-h-20 opacity-100 -mt-1' : 'max-h-0 opacity-0 mt-0 pointer-events-none'
                   }`}>
                     <button 
                       onClick={handleIncorrectAnswer}

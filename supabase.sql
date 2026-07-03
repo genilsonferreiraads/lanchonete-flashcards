@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS flashcard_products (
   code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   usage_category TEXT DEFAULT 'high' CHECK (usage_category IN ('high', 'medium', 'low')),
+  product_type TEXT DEFAULT 'lanches' CHECK (product_type IN ('lanches', 'refeicoes', 'bebidas', 'salgadinhos')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -131,6 +132,18 @@ ON CONFLICT (id) DO UPDATE
 SET code = EXCLUDED.code, 
     name = EXCLUDED.name,
     updated_at = NOW();
+
+-- Classificar produtos existentes por categoria de produto
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA extensions;
+
+UPDATE flashcard_products
+SET product_type = CASE
+  WHEN lower(extensions.unaccent(name)) ~ '(fandangos|doritos|cheetos|cebolitos|batata)' THEN 'salgadinhos'
+  WHEN lower(extensions.unaccent(name)) ~ '(coca|fanta|kuat|sprite|antarctica|tonica|agua|cajuina|suco|jarra|iogurte|toddynho|monster|red bull|power bull|megaton|guaraton|del valle|cafe|leite|coco|golito)' THEN 'bebidas'
+  WHEN lower(extensions.unaccent(name)) ~ '(pf|cuscus|arroz|bife|frango|costela|bode|sopa|caldo|macaxeira|porcao|feijao|macarrao|carne moida|mocoto|sol)' THEN 'refeicoes'
+  ELSE 'lanches'
+END,
+updated_at = NOW();
     
 
 -- Habilitar RLS (Row Level Security) - opcional, mas recomendado para produção
@@ -140,4 +153,3 @@ ALTER TABLE flashcard_products ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public read access" ON flashcard_products
   FOR SELECT
   USING (true);
-

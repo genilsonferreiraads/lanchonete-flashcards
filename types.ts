@@ -1,10 +1,11 @@
+export type ProductType = 'lanches' | 'refeicoes' | 'bebidas' | 'salgadinhos';
 
 export interface FlashcardData {
   id: number;
   front: string;
   back: string;
   usage_category?: 'high' | 'medium' | 'low';
-  product_type?: 'refeição' | 'lanches' | 'bebidas' | 'outros';
+  product_type?: ProductType;
 }
 
 export interface CardStats {
@@ -15,6 +16,7 @@ export interface CardStats {
   nextReview: number;
   totalAttempts: number;
   correctAttempts: number;
+  incorrectStreak?: number;
   lastReviewDate: number | null;
 }
 
