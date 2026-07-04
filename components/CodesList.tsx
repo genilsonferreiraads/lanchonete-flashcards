@@ -7,10 +7,11 @@ interface CodesListProps {
   onClose: () => void;
 }
 
-type FilterCategory = 'all' | 'high' | 'medium' | 'low';
+type FilterCategory = 'all' | 'missed' | 'high' | 'medium' | 'low';
 
 const filters: Array<{ value: FilterCategory; label: string }> = [
   { value: 'all', label: 'Todos' },
+  { value: 'missed', label: 'Errados' },
   { value: 'high', label: 'Muito usados' },
   { value: 'medium', label: 'Às vezes' },
   { value: 'low', label: 'Pouco usados' },
@@ -28,10 +29,40 @@ const getUsageClasses = (category?: string) => {
   return 'bg-emerald-50 text-emerald-700 border-emerald-200';
 };
 
+const getMissedProductIds = () => {
+  const ids = new Set<number>();
+
+  try {
+    const todayMisses = JSON.parse(localStorage.getItem('incorrectAnswers') || '[]');
+    if (Array.isArray(todayMisses)) {
+      todayMisses.forEach((id) => {
+        const numericId = Number(id);
+        if (Number.isFinite(numericId)) ids.add(numericId);
+      });
+    }
+  } catch {
+    // Ignore invalid local history.
+  }
+
+  try {
+    const spacedState = JSON.parse(localStorage.getItem('spaced_repetition_state') || '{}');
+    Object.values(spacedState || {}).forEach((stats: any) => {
+      const incorrectAttempts = Number(stats?.totalAttempts || 0) - Number(stats?.correctAttempts || 0);
+      const numericId = Number(stats?.id);
+      if (incorrectAttempts > 0 && Number.isFinite(numericId)) ids.add(numericId);
+    });
+  } catch {
+    // Ignore invalid local history.
+  }
+
+  return ids;
+};
+
 const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [products, setProducts] = useState(CARDS);
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
+  const [missedProductIds, setMissedProductIds] = useState<Set<number>>(() => getMissedProductIds());
 
   React.useEffect(() => {
     const loadProducts = async () => {
@@ -46,12 +77,15 @@ const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
     };
 
     loadProducts();
+    setMissedProductIds(getMissedProductIds());
   }, []);
 
   const filteredCards = useMemo(() => {
     let list = [...products];
 
-    if (filterCategory === 'high') {
+    if (filterCategory === 'missed') {
+      list = list.filter((card) => missedProductIds.has(card.id));
+    } else if (filterCategory === 'high') {
       list = list.filter((card) => !card.usage_category || card.usage_category === 'high');
     } else if (filterCategory === 'medium') {
       list = list.filter((card) => card.usage_category === 'medium');
@@ -67,7 +101,7 @@ const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
     return list.filter((card) => {
       return card.back.toLowerCase().includes(query) || card.front.toLowerCase().includes(query);
     });
-  }, [products, filterCategory, searchQuery]);
+  }, [products, filterCategory, searchQuery, missedProductIds]);
 
   return (
     <div className="fixed inset-0 z-50 touch-pan-y overflow-y-auto overscroll-contain bg-emerald-50 pt-[env(safe-area-inset-top)] text-slate-950">
@@ -141,7 +175,9 @@ const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
             <p className="text-sm font-black text-slate-800">
               {filteredCards.length} produto{filteredCards.length !== 1 ? 's' : ''}
             </p>
-            <p className="text-xs font-bold text-slate-500">Ordenado por relevância</p>
+            <p className="text-xs font-bold text-slate-500">
+              {filterCategory === 'missed' ? 'Produtos para revisar' : 'Ordenado por relevância'}
+            </p>
           </div>
 
           <section className="space-y-3">
@@ -169,8 +205,14 @@ const CodesList: React.FC<CodesListProps> = ({ onClose }) => {
               ))
             ) : (
               <div className="rounded-3xl border border-dashed border-emerald-200 bg-white p-8 text-center">
-                <p className="text-lg font-black text-slate-900">Nenhum resultado encontrado</p>
-                <p className="mt-2 text-sm font-semibold text-slate-500">Tente buscar por outro código ou produto.</p>
+                <p className="text-lg font-black text-slate-900">
+                  {filterCategory === 'missed' ? 'Nenhum produto errado' : 'Nenhum resultado encontrado'}
+                </p>
+                <p className="mt-2 text-sm font-semibold text-slate-500">
+                  {filterCategory === 'missed'
+                    ? 'Quando errar algum código, ele aparece aqui para revisão.'
+                    : 'Tente buscar por outro código ou produto.'}
+                </p>
               </div>
             )}
           </section>

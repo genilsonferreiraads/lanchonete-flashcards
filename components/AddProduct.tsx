@@ -7,6 +7,7 @@ interface AddProductProps {
   onClose: () => void;
   onProductAdded: () => void;
   initialProducts?: FlashcardData[];
+  initialCreateOpen?: boolean;
 }
 
 interface Product extends FlashcardData {
@@ -70,7 +71,7 @@ const Icon = ({ name, className = 'h-5 w-5' }: { name: 'x' | 'plus' | 'search' |
   return <svg {...common}><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z" /><path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z" /></svg>;
 };
 
-const UsageBadge = ({ category }: { category?: string }) => {
+const UsageBadge = ({ category, compact = false }: { category?: string; compact?: boolean }) => {
   const meta = getUsageMeta(category);
   const className = {
     high: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
@@ -79,10 +80,17 @@ const UsageBadge = ({ category }: { category?: string }) => {
   }[meta.value];
 
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${className}`}>
-      {meta.label}
+    <span className={`inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${className}`}>
+      {compact ? meta.shortLabel : meta.label}
     </span>
   );
+};
+
+const getCompactProductTypeLabel = (value?: string | null) => {
+  const meta = getProductTypeMeta(value);
+  if (meta.value === 'bebidas') return 'Bebidas';
+  if (meta.value === 'refeicoes') return 'Refeição';
+  return meta.label;
 };
 
 const SheetShell = ({
@@ -193,10 +201,10 @@ const ProductListItem = ({ product, onSelect }: { product: Product; onSelect: (p
     </div>
     <div className="min-w-0 flex-1">
       <p className="truncate text-base font-black tracking-tight text-slate-950">{product.front}</p>
-      <div className="mt-1 flex items-center gap-2">
-        <UsageBadge category={product.usage_category} />
-        <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
-          {getProductTypeMeta(inferProductTypeFromProduct(product)).label}
+      <div className="mt-1 flex min-w-0 items-center gap-1.5">
+        <UsageBadge category={product.usage_category} compact />
+        <span className="inline-flex min-w-0 max-w-[7.5rem] shrink items-center truncate whitespace-nowrap rounded-full bg-white px-2.5 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+          {getCompactProductTypeLabel(inferProductTypeFromProduct(product))}
         </span>
       </div>
     </div>
@@ -343,30 +351,44 @@ const CreateProductSheet = ({
   loading,
   error,
   onClose,
+  onClearError,
   onSubmit,
 }: {
   open: boolean;
   loading: boolean;
   error: string;
   onClose: () => void;
+  onClearError: () => void;
   onSubmit: (data: { code: string; name: string; usageCategory: UsageCategory; productType: ProductType }) => Promise<boolean>;
 }) => {
   const codeRef = useRef<HTMLInputElement | null>(null);
+  const createAnotherGuardRef = useRef(0);
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [usageCategory, setUsageCategory] = useState<UsageCategory>('high');
   const [productType, setProductType] = useState<ProductType>('lanches');
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [successProductName, setSuccessProductName] = useState('');
 
-  useEffect(() => {
-    if (!open) return;
+  const resetForm = () => {
     setCode('');
     setName('');
     setUsageCategory('high');
     setProductType('lanches');
     setFieldErrors({});
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    resetForm();
+    setSuccessProductName('');
     window.setTimeout(() => codeRef.current?.focus(), 180);
   }, [open]);
+
+  useEffect(() => {
+    if (successProductName) return;
+    setFieldErrors({});
+  }, [successProductName]);
 
   useEffect(() => {
     if (!open) return;
@@ -390,14 +412,24 @@ const CreateProductSheet = ({
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (Date.now() < createAnotherGuardRef.current && !code.trim() && !name.trim()) {
+      setFieldErrors({});
+      return;
+    }
     if (!validate()) return;
     const saved = await onSubmit({ code: code.trim(), name: name.trim(), usageCategory, productType });
     if (saved) {
-      setCode('');
-      setName('');
-      setUsageCategory('high');
-      setProductType('lanches');
+      setSuccessProductName(name.trim());
+      resetForm();
     }
+  };
+
+  const handleCreateAnother = () => {
+    createAnotherGuardRef.current = Date.now() + 900;
+    setSuccessProductName('');
+    onClearError();
+    resetForm();
+    window.setTimeout(() => codeRef.current?.focus(), 120);
   };
 
   return (
@@ -408,51 +440,72 @@ const CreateProductSheet = ({
       aria-label="Adicionar produto"
     >
       <div className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-2xl flex-col px-4 sm:px-6">
-        <header className="flex justify-end py-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-100 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
-            aria-label="Fechar"
-          >
-            <Icon name="x" className="h-6 w-6" />
-          </button>
-        </header>
-
-        <main className="flex-1 pb-4">
-          <form id="create-product-form" onSubmit={handleSubmit} className="space-y-4">
-            <section className="rounded-[1.75rem] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/70 sm:p-5">
-              <div className="mb-5 border-b border-slate-100 pb-4">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600">Novo cadastro</p>
-                <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Adicionar produto</h2>
+        <main className="flex-1 pb-4 pt-3">
+          {successProductName ? (
+            <section className="flex min-h-[calc(100dvh-env(safe-area-inset-top)-7rem)] flex-col justify-center rounded-[1.75rem] border border-emerald-100 bg-white p-6 text-center shadow-sm shadow-emerald-100/70 sm:p-8">
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
+                <Icon name="check" className="h-8 w-8" />
               </div>
-              {error && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
-              <ProductForm
-                code={code}
-                name={name}
-                usageCategory={usageCategory}
-                productType={productType}
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600">Produto cadastrado</p>
+              <h2 className="mt-2 text-2xl font-black tracking-tight text-slate-950">{successProductName}</h2>
+              <p className="mx-auto mt-3 max-w-xs text-sm font-semibold leading-relaxed text-slate-500">
+                O produto foi salvo e já pode aparecer nos flashcards.
+              </p>
+            </section>
+          ) : (
+            <form id="create-product-form" onSubmit={handleSubmit} className="space-y-4">
+              <section className="rounded-[1.75rem] border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/70 sm:p-5">
+                <div className="mb-5 border-b border-slate-100 pb-4">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600">Novo cadastro</p>
+                  <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">Adicionar produto</h2>
+                </div>
+                {error && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
+                <ProductForm
+                  code={code}
+                  name={name}
+                  usageCategory={usageCategory}
+                  productType={productType}
                 fieldErrors={fieldErrors}
                 autoFocusRef={codeRef}
-                onCodeChange={setCode}
+                onCodeChange={(value) => {
+                  onClearError();
+                  setFieldErrors((current) => ({ ...current, code: undefined }));
+                  setCode(value);
+                }}
                 onNameChange={(value) => {
+                  onClearError();
+                  setFieldErrors((current) => ({ ...current, name: undefined }));
                   setName(value);
                   setProductType(inferProductTypeFromProduct({ front: value, back: code, product_type: undefined }));
                 }}
-                onCategoryChange={setUsageCategory}
-                onProductTypeChange={setProductType}
-              />
-            </section>
-          </form>
+                  onCategoryChange={setUsageCategory}
+                  onProductTypeChange={setProductType}
+                />
+              </section>
+            </form>
+          )}
         </main>
 
         <footer className="-mx-4 grid grid-cols-2 gap-3 border-t border-emerald-100 bg-emerald-50 px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:-mx-6 sm:px-6">
-          <button type="button" onClick={onClose} className="min-h-[52px] rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50">
-            Cancelar
-          </button>
-          <button type="submit" form="create-product-form" disabled={loading} className="min-h-[52px] rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
-            {loading ? 'Adicionando...' : 'Adicionar'}
-          </button>
+          {successProductName ? (
+            <>
+              <button type="button" onClick={onClose} className="min-h-[52px] rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50">
+                Praticar agora
+              </button>
+              <button type="button" onClick={handleCreateAnother} className="min-h-[52px] rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700">
+                Cadastrar novo
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={onClose} className="min-h-[52px] rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-700 shadow-sm transition hover:bg-slate-50">
+                Cancelar
+              </button>
+              <button type="submit" form="create-product-form" disabled={loading} className="min-h-[52px] rounded-2xl bg-emerald-600 text-sm font-black text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">
+                {loading ? 'Adicionando...' : 'Adicionar'}
+              </button>
+            </>
+          )}
         </footer>
       </div>
     </div>
@@ -637,8 +690,8 @@ const ConfirmDeleteSheet = ({
 
   return (
     <SheetShell
-      title="Excluir produto?"
-      eyebrow="Acao permanente"
+      title="Confirmar exclusão"
+      eyebrow="Excluir produto"
       danger
       onClose={onClose}
       footer={
@@ -652,28 +705,36 @@ const ConfirmDeleteSheet = ({
         </div>
       }
     >
-      <div className="space-y-4">
-        <div className="rounded-3xl border border-rose-100 bg-rose-50 p-4">
-          <p className="text-sm font-semibold leading-relaxed text-rose-700">
-            Isso remove o produto da base de flashcards. Esta acao nao pode ser desfeita por aqui.
-          </p>
+      <div className="space-y-3">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100">
+              <Icon name="trash" className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Produto</p>
+              <p className="truncate text-lg font-black text-slate-950">{product.front}</p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+            <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Código</span>
+            <span className="text-lg font-black tabular-nums text-slate-900">{product.back}</span>
+          </div>
         </div>
-        <div className="rounded-3xl border border-slate-200 bg-white p-4">
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Produto</p>
-          <p className="mt-2 text-lg font-black text-slate-950">{product.front}</p>
-          <p className="mt-1 text-sm font-bold text-slate-500">Codigo {product.back}</p>
-        </div>
+        <p className="px-1 text-center text-xs font-semibold leading-relaxed text-slate-500">
+          Ao confirmar, este produto sai da lista e dos flashcards.
+        </p>
         {error && <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
       </div>
     </SheetShell>
   );
 };
 
-const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded, initialProducts = [] }) => {
+const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded, initialProducts = [], initialCreateOpen = false }) => {
   const [products, setProducts] = useState<Product[]>(initialProducts as Product[]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(initialCreateOpen);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Product | null>(null);
   const [loadingProducts, setLoadingProducts] = useState(initialProducts.length === 0);
@@ -792,7 +853,6 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded, initia
 
       commitProducts([...products, insertedProduct as Product]);
       onProductAdded();
-      setIsCreateOpen(false);
       setToast('Produto adicionado com sucesso.');
       return true;
     } catch (error: any) {
@@ -918,8 +978,6 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded, initia
     });
   }, [sortedProducts, searchQuery]);
 
-  const highCount = products.filter((product) => getUsageCategory(product) === 'high').length;
-
   return (
     <div className="fixed inset-0 z-50 touch-pan-y overflow-y-auto overscroll-contain bg-emerald-50 pt-[env(safe-area-inset-top)] text-slate-950">
       <div className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top))] w-full max-w-5xl flex-col bg-emerald-50 px-4 pb-28 pt-0 sm:px-6 sm:pb-10 lg:px-8">
@@ -963,26 +1021,9 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded, initia
             </div>
           )}
 
-          <section className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-white p-2.5 shadow-sm">
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <div className="flex-1 rounded-xl bg-white px-3 py-2 ring-1 ring-emerald-100">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-600">Total</p>
-                <p className="text-lg font-black leading-tight text-slate-950">{products.length}</p>
-              </div>
-              <div className="flex-1 rounded-xl bg-emerald-50 px-3 py-2 ring-1 ring-emerald-100">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-600">Alta</p>
-                <p className="text-lg font-black leading-tight text-emerald-800">{highCount}</p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsCreateOpen(true)}
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 sm:hidden"
-              aria-label="Adicionar produto"
-            >
-              <Icon name="plus" className="h-6 w-6" />
-            </button>
-          </section>
+          <p className="px-1 text-xs font-black uppercase tracking-[0.12em] text-emerald-700">
+            {products.length} produto{products.length !== 1 ? 's' : ''} cadastrado{products.length !== 1 ? 's' : ''}
+          </p>
 
           <ProductSearch
             value={searchQuery}
@@ -1026,9 +1067,14 @@ const AddProduct: React.FC<AddProductProps> = ({ onClose, onProductAdded, initia
         open={isCreateOpen}
         loading={createLoading}
         error={createError}
+        onClearError={() => setCreateError('')}
         onClose={() => {
           setCreateError('');
-          setIsCreateOpen(false);
+          if (initialCreateOpen) {
+            onClose();
+          } else {
+            setIsCreateOpen(false);
+          }
         }}
         onSubmit={handleCreateProduct}
       />

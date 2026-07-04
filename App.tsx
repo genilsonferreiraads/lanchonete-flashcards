@@ -15,7 +15,7 @@ const FIRST_MISS_REVIEW_GAP = 10;
 const REPEATED_MISS_REVIEW_GAP = 5;
 
 export default function App() {
-  const [cards, setCards] = useState<FlashcardData[]>(() => [...CARDS].sort(compareProductsByLearningRank));
+  const [cards, setCards] = useState<FlashcardData[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [reviewQueue, setReviewQueue] = useState<number[]>([]);
@@ -39,19 +39,21 @@ export default function App() {
       return new Set();
     }
   });
-  const [incorrectAnswers, setIncorrectAnswers] = useState(() => {
+  const [incorrectAnswers, setIncorrectAnswers] = useState<Set<number>>(() => {
     try {
       const saved = localStorage.getItem('incorrectAnswers');
       const lastDate = localStorage.getItem('lastSessionDate');
       const today = new Date().toDateString();
 
       if (lastDate !== today) {
-        return 0;
+        return new Set();
       }
 
-      return saved ? Number(JSON.parse(saved)) || 0 : 0;
+      if (!saved) return new Set();
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? new Set(parsed) : new Set();
     } catch {
-      return 0;
+      return new Set();
     }
   });
   const [forceUpdate, setForceUpdate] = useState(0);
@@ -63,6 +65,7 @@ export default function App() {
   const [showCodesList, setShowCodesList] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
+  const [openCreateOnProductPanel, setOpenCreateOnProductPanel] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const answerLockRef = useRef(false);
@@ -121,6 +124,7 @@ export default function App() {
       if (event === 'SIGNED_OUT' || !session) {
         setIsAuthenticated(false);
         setShowAddProduct(false);
+        setOpenCreateOnProductPanel(false);
       } else {
         setIsAuthenticated(!!session);
       }
@@ -164,9 +168,11 @@ export default function App() {
         } else {
           // Fallback para produtos locais se Supabase estiver vazio
           console.log('Using local products as fallback');
+          setCards([...CARDS].sort(compareProductsByLearningRank));
         }
       } catch (error) {
         console.error('Failed to load products from Supabase, using local fallback:', error);
+        setCards([...CARDS].sort(compareProductsByLearningRank));
       } finally {
         setIsLoadingProducts(false);
       }
@@ -192,36 +198,14 @@ export default function App() {
 
 
 
-  // Lógica de desbloqueio progressivo e filtragem de cartões ativos
+  // A fila principal sempre contempla todos os produtos. A prioridade muda a ordem,
+  // mas não reduz o total que o visitante precisa estudar.
   const activeCards = useMemo(() => {
-    const isCardLearned = (id: number) => {
-      const stats = spacedRepetitionService.getCardStats(id);
-      return stats ? stats.repetitions >= 3 : false;
-    };
-
-    const highCards = cards.filter(c => !c.usage_category || c.usage_category === 'high');
-    const mediumCards = cards.filter(c => c.usage_category === 'medium');
-    const lowCards = cards.filter(c => c.usage_category === 'low');
-
-    if (filterCategory === 'high') return highCards;
-    if (filterCategory === 'medium') return mediumCards;
-    if (filterCategory === 'low') return lowCards;
-    if (filterCategory === 'all') return cards;
-
-    const unlearnedHigh = highCards.filter(c => !isCardLearned(c.id));
-    const unlearnedMedium = mediumCards.filter(c => !isCardLearned(c.id));
-
-    if (unlearnedHigh.length > 0 && highCards.length > 0) {
-      // Se houver cartões de alta prioridade não aprendidos, foca neles
-      return highCards;
-    } else if (unlearnedMedium.length > 0 && mediumCards.length > 0) {
-      // Se todos de alta prioridade foram aprendidos, desbloqueia média prioridade
-      return [...highCards, ...mediumCards];
-    } else {
-      // Se todos de alta e média prioridade foram aprendidos, desbloqueia tudo
-      return cards;
-    }
-  }, [cards, forceUpdate, filterCategory]);
+    if (filterCategory === 'high') return cards.filter(c => !c.usage_category || c.usage_category === 'high');
+    if (filterCategory === 'medium') return cards.filter(c => c.usage_category === 'medium');
+    if (filterCategory === 'low') return cards.filter(c => c.usage_category === 'low');
+    return cards;
+  }, [cards, filterCategory]);
 
   // Informações detalhadas sobre a fase atual de aprendizado para a interface
   const currentPhaseInfo = useMemo(() => {
@@ -302,21 +286,13 @@ export default function App() {
 
   // Initialize review queue with all cards due for review
   useEffect(() => {
-    const now = Date.now();
+    if (isLoadingProducts) return;
+
     const activeCardIds = activeCards.map(c => c.id);
-    
-    // Get cards that are due for review OR have never been initialized
-    const due = activeCardIds.filter(id => {
-      const stats = spacedRepetitionService.getCardStats(id);
-      if (!stats) return true; // New cards
-      return stats.nextReview <= now; // Due for review
-    });
 
-    // If no cards are due, show all active cards (allow unlimited reviews)
-    const cardsToReview = due.length > 0 ? due : activeCardIds;
-
-    // Sort by priority
-    const sorted = spacedRepetitionService.sortCardsByPriority(cardsToReview, cards);
+    // Keep every product in the session. Spaced repetition and learning rank only
+    // decide the order, so the progress total always represents all products.
+    const sorted = spacedRepetitionService.sortCardsByPriority(activeCardIds, cards);
     setReviewQueue(sorted);
     
     // Check if it's a new day and reset if needed
@@ -328,7 +304,7 @@ export default function App() {
       localStorage.removeItem('correctAnswers');
       localStorage.removeItem('incorrectAnswers');
       setCorrectAnswers(new Set());
-      setIncorrectAnswers(0);
+      setIncorrectAnswers(new Set());
     }
     
     setCurrentIndex(0);
@@ -337,7 +313,7 @@ export default function App() {
     setAnswerResult(null);
     answerLockRef.current = false;
     setExerciseState(sorted.length > 0 ? 'answering' : 'completed');
-  }, [activeCards, cards]);
+  }, [activeCards, cards, isLoadingProducts]);
 
   const registerCorrectAnswer = useCallback((cardId: number) => {
     spacedRepetitionService.recordCorrectAnswer(cardId);
@@ -357,8 +333,9 @@ export default function App() {
     const stats = spacedRepetitionService.getCardStats(cardId);
 
     setIncorrectAnswers((current) => {
-      const next = current + 1;
-      localStorage.setItem('incorrectAnswers', JSON.stringify(next));
+      const next = new Set(current);
+      next.add(cardId);
+      localStorage.setItem('incorrectAnswers', JSON.stringify([...next]));
       localStorage.setItem('lastSessionDate', new Date().toDateString());
       return next;
     });
@@ -481,9 +458,9 @@ export default function App() {
     const activeCardIds = activeCards.map(card => card.id);
     const sorted = spacedRepetitionService.sortCardsByPriority(activeCardIds, cards);
     setCorrectAnswers(new Set());
-    setIncorrectAnswers(0);
+    setIncorrectAnswers(new Set());
     localStorage.setItem('correctAnswers', JSON.stringify([]));
-    localStorage.setItem('incorrectAnswers', JSON.stringify(0));
+    localStorage.setItem('incorrectAnswers', JSON.stringify([]));
     localStorage.setItem('lastSessionDate', new Date().toDateString());
     setReviewQueue(sorted);
     setCurrentIndex(0);
@@ -521,6 +498,16 @@ export default function App() {
   }, []);
 
   const handleAddProductClick = useCallback(() => {
+    setOpenCreateOnProductPanel(false);
+    if (isAuthenticated) {
+      setShowAddProduct(true);
+    } else {
+      setShowLogin(true);
+    }
+  }, [isAuthenticated]);
+
+  const handleNewProductClick = useCallback(() => {
+    setOpenCreateOnProductPanel(true);
     if (isAuthenticated) {
       setShowAddProduct(true);
     } else {
@@ -546,6 +533,7 @@ export default function App() {
       setIsAuthenticated(false);
       setShowAddProduct(false);
       setShowLogin(false);
+      setOpenCreateOnProductPanel(false);
       
       // Verificar se a sessão foi realmente removida
       const { data: { session } } = await supabase.auth.getSession();
@@ -590,8 +578,9 @@ export default function App() {
 
   const hasCards = reviewQueue.length > 0;
   const totalCards = cards.length;
-  const totalCardsToLearn = activeCards.length;
-  const answeredCount = Math.min(correctAnswers.size + incorrectAnswers, totalCardsToLearn);
+  const totalCardsToLearn = totalCards;
+  const studiedProductIds = useMemo(() => new Set([...correctAnswers, ...incorrectAnswers]), [correctAnswers, incorrectAnswers]);
+  const answeredCount = Math.min(studiedProductIds.size, totalCardsToLearn);
   const progressPercentage = totalCardsToLearn > 0 ? (answeredCount / totalCardsToLearn) * 100 : 0;
   const currentProgressCode = totalCardsToLearn > 0 ? Math.min(answeredCount + (hasCards ? 1 : 0), totalCardsToLearn) : 0;
   const maxCodeLength = useMemo(() => Math.max(...cards.map(card => String(card.back ?? '').length), 1), [cards]);
@@ -606,7 +595,15 @@ export default function App() {
         <Login onLoginSuccess={handleLoginSuccess} onClose={() => setShowLogin(false)} />
       )}
       {showAddProduct && (
-        <AddProduct onClose={() => setShowAddProduct(false)} onProductAdded={handleProductAdded} initialProducts={cards} />
+        <AddProduct
+          onClose={() => {
+            setShowAddProduct(false);
+            setOpenCreateOnProductPanel(false);
+          }}
+          onProductAdded={handleProductAdded}
+          initialProducts={cards}
+          initialCreateOpen={openCreateOnProductPanel}
+        />
       )}
       {showCodesList && (
         <CodesList onClose={handleCloseCodesList} />
@@ -708,8 +705,19 @@ export default function App() {
                         }}
                         className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.36a1.7 1.7 0 0 0-1 .64l-.03.08a2 2 0 1 1-3.94 0L10 20a1.7 1.7 0 0 0-1-.64 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.64 15a1.7 1.7 0 0 0-.64-1L3.92 14a2 2 0 1 1 0-3.94L4 10a1.7 1.7 0 0 0 .64-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.64a1.7 1.7 0 0 0 1-.64l.03-.08a2 2 0 1 1 3.94 0L14 4a1.7 1.7 0 0 0 1 .64 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.36 9c.05.36.27.7.64 1l.08.03a2 2 0 1 1 0 3.94L20 14a1.7 1.7 0 0 0-.6 1Z"/></svg>
                         Gerenciar produtos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          handleNewProductClick();
+                        }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                        Novo produto
                       </button>
                       <button
                         type="button"
@@ -759,7 +767,7 @@ export default function App() {
                           {correctAnswers.size} acertos
                         </span>
                         <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-600 ring-1 ring-rose-100">
-                          {incorrectAnswers} erros
+                          {incorrectAnswers.size} erros
                         </span>
                       </div>
                     </div>
@@ -922,7 +930,49 @@ export default function App() {
                 </button>
               </div>
 
-              {hasCards || exerciseState === 'completed' ? (
+              {isLoadingProducts ? (
+                <div className="px-4 pt-2">
+                  <div className="mx-auto w-full max-w-sm animate-pulse space-y-5">
+                    <div className="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm shadow-emerald-100/70">
+                      <div className="mb-4 flex items-center justify-between gap-4">
+                        <div className="space-y-2">
+                          <div className="h-4 w-24 rounded-full bg-slate-100" />
+                          <div className="h-3 w-32 rounded-full bg-slate-100" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-16 rounded-full bg-emerald-50" />
+                          <div className="h-7 w-14 rounded-full bg-rose-50" />
+                        </div>
+                      </div>
+                      <div className="h-2 rounded-full bg-emerald-50">
+                        <div className="h-2 w-1/5 rounded-full bg-emerald-100" />
+                      </div>
+                    </div>
+
+                    <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/70">
+                      <div className="flex min-h-[420px] flex-col items-center justify-between">
+                        <div className="w-full space-y-3 pt-8 text-center">
+                          <div className="mx-auto h-3 w-20 rounded-full bg-slate-100" />
+                          <div className="mx-auto h-8 w-44 rounded-full bg-slate-100" />
+                        </div>
+                        <div className="flex gap-2">
+                          <div className="h-12 w-12 rounded-2xl bg-slate-100" />
+                          <div className="h-12 w-12 rounded-2xl bg-slate-100" />
+                          <div className="h-12 w-12 rounded-2xl bg-slate-100" />
+                        </div>
+                        <div className="grid w-full max-w-[280px] grid-cols-3 gap-3 pb-2">
+                          {Array.from({ length: 12 }).map((_, index) => (
+                            <div
+                              key={index}
+                              className={`h-16 rounded-2xl ${index === 9 || index === 11 ? 'bg-slate-50' : 'bg-slate-100'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : hasCards || exerciseState === 'completed' ? (
                 <>
                   <div className="hidden">
                     <div className="mb-2 flex items-start justify-between gap-3">
@@ -935,7 +985,7 @@ export default function App() {
                           {correctAnswers.size} acertos
                         </span>
                         <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-black text-rose-600 ring-1 ring-rose-100">
-                          {incorrectAnswers} erros
+                          {incorrectAnswers.size} erros
                         </span>
                       </div>
                     </div>
@@ -957,9 +1007,9 @@ export default function App() {
                         result={answerResult}
                         maxCodeLength={currentCodeLength}
                         isLastCard={isLastCard}
-                        studiedCount={correctAnswers.size + incorrectAnswers}
+                        studiedCount={studiedProductIds.size}
                         correctCount={correctAnswers.size}
-                        incorrectCount={incorrectAnswers}
+                        incorrectCount={incorrectAnswers.size}
                         onDigit={handleDigit}
                         onDelete={handleDeleteDigit}
                         onConfirm={handleConfirmCode}

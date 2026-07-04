@@ -1,5 +1,12 @@
-const CACHE_NAME = 'limarques-flashcards-v1';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icons/icon.svg', '/icons/maskable.svg'];
+const CACHE_NAME = 'limarques-flashcards-v2';
+const APP_SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/icons/favicon-32x32.png',
+  '/icons/apple-touch-icon-180x180.png',
+  '/icons/icon-192x192.png',
+  '/icons/icon-512x512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

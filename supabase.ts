@@ -5,7 +5,14 @@ import { inferProductTypeFromProduct } from './productCategories';
 const supabaseUrl = 'https://cvjwpgphpvefxnrsdiwo.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2andwZ3BocHZlZnhucnNkaXdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzcwNTI5NDgsImV4cCI6MjA1MjYyODk0OH0.4BaGXn3ypP11Ao-wGg84YzNrfU9gt5WKH0a4nENYgKs';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'limarques-supabase-auth',
+  },
+});
 
 const PRODUCTS_CACHE_TTL = 2 * 60 * 1000;
 let productsCache: FlashcardData[] | null = null;
